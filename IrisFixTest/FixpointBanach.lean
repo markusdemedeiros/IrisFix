@@ -4,12 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import IrisFix.BI.Lib.PointwiseBanach
+public import IrisFix.BI.Lib.FixpointBanach
 
 @[expose] public section
 open Iris BI OFE
 
-namespace IrisTest.PointwiseBanach
+namespace IrisTest.FixpointBanach
 
 local bi PROP
 
@@ -73,4 +73,4 @@ example [BILaterContractive PROP] (n : Nat) (b : Bool) :
     infer_instance
   exact h n b
 
-end IrisTest.PointwiseBanach
+end IrisTest.FixpointBanach

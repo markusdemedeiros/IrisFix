@@ -71,7 +71,7 @@ ifix swapNe [OFE α] (x y : α) : PROP := iprop(▷ swapNe y x)
 
 example [OFE α] {n : Nat} {x x' y y' : α} (hx : x ≡{n}≡ x') (hy : y ≡{n}≡ y') :
     swapNe (PROP := PROP) x y ≡{n}≡ swapNe x' y' :=
-  swapNe.ne (fun _ hf n x x' hx y y' hy => later_ne.ne (hf n y y' hy x x' hx)) n x x' hx y y' hy
+  swapNe.ne (fun _ _ hf x x' hx y y' hy => later_ne.ne (hf y y' hy x x' hx)) x x' hx y y' hy
 
 -- A fixed parameter after a varying one.
 ifix mixed2 [OFE α] (b : Bool) (x : α) : PROP := iprop(▷ mixed2 (!b) x ∗ mixed2 b x)
@@ -91,7 +91,7 @@ ifix mixedNe [OFE α] (x y : α) (k : Nat) : PROP := iprop(▷ mixedNe y x k)
 
 example [OFE α] (k : Nat) {n : Nat} {x x' y y' : α} (hx : x ≡{n}≡ x') (hy : y ≡{n}≡ y') :
     mixedNe (PROP := PROP) x y k ≡{n}≡ mixedNe x' y' k :=
-  mixedNe.ne k (fun _ hf n x x' hx y y' hy => later_ne.ne (hf n y y' hy x x' hx)) n x x' hx y y' hy
+  mixedNe.ne k (fun _ _ hf x x' hx y y' hy => later_ne.ne (hf y y' hy x x' hx)) x x' hx y y' hy
 end
 
 end IrisTest.Fixpoint

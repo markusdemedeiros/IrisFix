@@ -6,7 +6,7 @@ Authors: Markus de Medeiros
 module
 
 public meta import IrisFix.BI.Lib.Monotone
-public meta import IrisFix.BI.Lib.Pointwise
+public meta import IrisFix.BI.Lib.Fixpoint
 public meta import Iris.ProofMode
 public meta import Lean.Meta.Sym
 public meta import Lean.LabelAttribute

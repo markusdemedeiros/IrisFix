@@ -4,13 +4,13 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import IrisFix.BI.Lib.Pointwise
+public import IrisFix.BI.Lib.Fixpoint
 public meta import IrisFix.ProofMode.Lib
 
 @[expose] public section
 open Iris BI OFE Lean.Order
 
-namespace IrisTest.Pointwise
+namespace IrisTest.FixpointLaws
 
 local bi PROP
 
@@ -73,71 +73,71 @@ open MonotoneFixpoint
 -- Park induction alone, at a constant.
 example (h : IOrder.IMono PROP F) [∀ x, Affine (F (fun _ => iprop(emp)) x)] (x : A) :
     Affine (μ x) :=
-  ⟨IOrder.fix_le_of (IOrder.monotone_of_imono h) (E := fun _ => iprop(emp))
+  ⟨fix_le_of (IOrder.monotone_of_imono h) (E := fun _ => iprop(emp))
     (fun _ => Affine.affine) x⟩
 
 example (h : IOrder.IMono PROP F) [∀ x, Absorbing (F (fun y => iprop(True -∗ μ y)) x)] (x : A) :
     Absorbing (μ x) := by
   have hT (P : PROP) : iprop(True -∗ P) ⊢ P := by iintro H; iapply H; ipureintro; trivial
   have hA (P : PROP) [Absorbing P] : P ⊢ iprop(True -∗ P) := by iintro H -; iexact H
-  have hle := IOrder.fix_le_imap (PROP := PROP) (IOrder.monotone_of_imono h)
-    (m := fun P => iprop(True -∗ P)) wand_mono_right (fun _ => hT _) (fun _ => hA _)
+  have hle := fix_le_map (IOrder.monotone_of_imono h)
+    (IMap.map_mono (PROP := PROP) (m := fun P => iprop(True -∗ P)) fun _ _ => wand_mono_right)
+    (fun _ => hT _) (fun _ => hA _)
   exact ⟨sep_symm.trans (wand_elim (hle x))⟩
 
 example (h : IOrder.IMono PROP F) [∀ x, Affine (F (fun y => iprop(□ μ y)) x)]
     [∀ x, Persistent (F (fun y => iprop(□ μ y)) x)] (x : A) : Persistent (μ x) := by
-  have hle := IOrder.fix_le_imap (PROP := PROP) (IOrder.monotone_of_imono h)
-    (m := fun P => iprop(□ P)) intuitionistically_mono (fun _ => intuitionistically_elim)
+  have hle := fix_le_map (IOrder.monotone_of_imono h)
+    (IMap.map_mono (PROP := PROP) (m := fun P => iprop(□ P)) fun _ _ => intuitionistically_mono)
+    (fun _ => intuitionistically_elim)
     (fun _ => intuitionistically_of_intuitionistic.2)
   exact ⟨(hle x).trans persistently_of_intuitionistically⟩
 
 example (h : IOrder.IMono PROP F) [∀ x, Absorbing (μ x)]
     [∀ x, Persistent (F (fun y => iprop(<pers> μ y)) x)] (x : A) : Persistent (μ x) := by
-  have hle := IOrder.fix_le_imap (PROP := PROP) (IOrder.monotone_of_imono h)
-    (m := fun P => iprop(<pers> P))
-    persistently_mono (fun _ => persistently_elim) (fun _ => Persistent.persistent)
+  have hle := fix_le_map (IOrder.monotone_of_imono h)
+    (IMap.map_mono (PROP := PROP) (m := fun P => iprop(<pers> P))
+    fun _ _ => persistently_mono) (fun _ => persistently_elim) (fun _ => Persistent.persistent)
   exact ⟨hle x⟩
 end
 
 open CoMonotoneFixpoint in
 example (h : IOrder.IMono PROP F) [∀ x, Absorbing (F (fun y => iprop(<absorb> ν y)) x)] (x : A) :
     Absorbing (ν x) := by
-  have hle := IOrder.fix_le_imap (PROP := PROP) (IOrder.monotone_of_imono h)
-    (m := fun P => iprop(<absorb> P))
-    absorbingly_mono (fun _ => absorbingly_intro) (fun _ => Absorbing.absorbing)
+  have hle := fix_le_map (IOrder.monotone_of_imono h)
+    (IMap.map_mono (PROP := PROP) (m := fun P => iprop(<absorb> P))
+    fun _ _ => absorbingly_mono) (fun _ => absorbingly_intro) (fun _ => Absorbing.absorbing)
   exact ⟨hle x⟩
 
 /-! ## The unary `ne` laws -/
 
 open MonotoneFixpoint in
 example [OFE A] (h : IOrder.IMono PROP F)
-    (hF : ∀ Φ : A → PROP, NonExpansive Φ → NonExpansive (F Φ)) : NonExpansive μ := by
-  -- `ne` at `A → PROP` is non-expansiveness.
-  have hne := IOrder.fix_ne (PROP := PROP) (IOrder.monotone_of_imono h) fun f hf n x y hxy =>
-    (hF f ⟨fun {n} x y => hf n x y⟩).ne hxy
-  exact ⟨fun {n} x y => hne n x y⟩
+    (hF : ∀ n (Φ Ψ : A → PROP), (∀ x y, x ≡{n}≡ y → Φ x ≡{n}≡ Ψ y) →
+      ∀ x y, x ≡{n}≡ y → F Φ x ≡{n}≡ F Ψ y) : NonExpansive μ :=
+  -- `ne n` at `A → PROP` relates `Φ` and `Ψ` at `≡{n}≡` arguments.
+  ⟨fun {n} x y hxy => fix_ne _ _ (hF n) x y hxy⟩
 
 open CoMonotoneFixpoint in
 example [OFE A] (h : IOrder.IMono PROP F)
-    (hF : ∀ Φ : A → PROP, NonExpansive Φ → NonExpansive (F Φ)) : NonExpansive ν := by
-  -- `ne` at `A → PROP` is non-expansiveness.
-  have hne := IOrder.fix_ne (PROP := PROP) (IOrder.monotone_of_imono h) fun f hf n x y hxy =>
-    (hF f ⟨fun {n} x y => hf n x y⟩).ne hxy
-  exact ⟨fun {n} x y => hne n x y⟩
+    (hF : ∀ n (Φ Ψ : A → PROP), (∀ x y, x ≡{n}≡ y → Φ x ≡{n}≡ Ψ y) →
+      ∀ x y, x ≡{n}≡ y → F Φ x ≡{n}≡ F Ψ y) : NonExpansive ν :=
+  -- `ne n` at `A → PROP` relates `Φ` and `Ψ` at `≡{n}≡` arguments.
+  ⟨fun {n} x y hxy => fix_ne _ _ (hF n) x y hxy⟩
 
 open MonotoneFixpoint in
 example {F₁ F₂ : (A → PROP) → A → PROP} (h₁ : IOrder.IMono PROP F₁) (h₂ : IOrder.IMono PROP F₂)
     {n : Nat} (hF₂ : ∀ Φ Ψ : A → PROP, (∀ x, Φ x ≡{n}≡ Ψ x) → ∀ x, F₂ Φ x ≡{n}≡ F₂ Ψ x)
     (hF : ∀ Φ x, F₁ Φ x ≡{n}≡ F₂ Φ x) (x : A) :
     fix F₁ (IOrder.monotone_of_imono h₁) x ≡{n}≡ fix F₂ (IOrder.monotone_of_imono h₂) x :=
-  IOrder.fix_dist PROP _ _ hF₂ hF x
+  fix_ne _ _ (fun Φ Ψ hΦΨ x => (hF Φ x).trans (hF₂ Φ Ψ hΦΨ x)) x
 
 open CoMonotoneFixpoint in
 example {F₁ F₂ : (A → PROP) → A → PROP} (h₁ : IOrder.IMono PROP F₁) (h₂ : IOrder.IMono PROP F₂)
     {n : Nat} (hF₂ : ∀ Φ Ψ : A → PROP, (∀ x, Φ x ≡{n}≡ Ψ x) → ∀ x, F₂ Φ x ≡{n}≡ F₂ Ψ x)
     (hF : ∀ Φ x, F₁ Φ x ≡{n}≡ F₂ Φ x) (x : A) :
     fix F₁ (IOrder.monotone_of_imono h₁) x ≡{n}≡ fix F₂ (IOrder.monotone_of_imono h₂) x :=
-  IOrder.fix_dist PROP _ _ hF₂ hF x
+  fix_ne _ _ (fun Φ Ψ hΦΨ x => (hF Φ x).trans (hF₂ Φ Ψ hΦΨ x)) x
 end
 
 -- Two arguments with OFEs: non-expansive in both.
@@ -145,12 +145,11 @@ section
 open MonotoneFixpoint
 variable {α γ : Type _} [OFE α] [OFE γ] {F : (α → γ → PROP) → α → γ → PROP} (hF : monotone F)
 
-def NE₂ (f : α → γ → PROP) : Prop :=
-  ∀ n x x', x ≡{n}≡ x' → ∀ y y', y ≡{n}≡ y' → f x y ≡{n}≡ f x' y'
-
-example (hne : ∀ f, NE₂ (PROP := PROP) f → NE₂ (F f)) {n : Nat} {x x' : α} {y y' : γ}
-    (hx : x ≡{n}≡ x') (hy : y ≡{n}≡ y') : fix F hF x y ≡{n}≡ fix F hF x' y' :=
-  IOrder.fix_ne (PROP := PROP) hF hne n x x' hx y y' hy
+example {n : Nat} (hne : ∀ f g : α → γ → PROP,
+      (∀ x x', x ≡{n}≡ x' → ∀ y y', y ≡{n}≡ y' → f x y ≡{n}≡ g x' y') →
+      ∀ x x', x ≡{n}≡ x' → ∀ y y', y ≡{n}≡ y' → F f x y ≡{n}≡ F g x' y')
+    {x x' : α} {y y' : γ} (hx : x ≡{n}≡ x') (hy : y ≡{n}≡ y') : fix F hF x y ≡{n}≡ fix F hF x' y' :=
+  fix_ne hF hF hne x x' hx y y' hy
 end
 
 /-! ## Every law at two arguments
@@ -181,29 +180,32 @@ example (Φ W : Nat → Bool → PROP) (hW : ∀ n b, iprop(Φ n b ∧ F W n b) 
   IOrder.fix_ind_wf hF Φ W hW
 
 example [∀ n b, Affine (F (fun _ _ => iprop(emp)) n b)] (n : Nat) (b : Bool) : Affine (μ n b) :=
-  ⟨IOrder.fix_le_of (IOrder.monotone_of_imono hF) (E := fun _ _ => iprop(emp))
+  ⟨fix_le_of (IOrder.monotone_of_imono hF) (E := fun _ _ => iprop(emp))
     (fun _ _ => Affine.affine) n b⟩
 
 example [∀ n b, Absorbing (F (fun n b => iprop(True -∗ μ n b)) n b)] (n : Nat) (b : Bool) :
     Absorbing (μ n b) := by
   have hT (P : PROP) : iprop(True -∗ P) ⊢ P := by iintro H; iapply H; ipureintro; trivial
   have hA (P : PROP) [Absorbing P] : P ⊢ iprop(True -∗ P) := by iintro H -; iexact H
-  have hle := IOrder.fix_le_imap (PROP := PROP) (IOrder.monotone_of_imono hF)
-    (m := fun P => iprop(True -∗ P)) wand_mono_right (fun _ _ => hT _) (fun _ _ => hA _)
+  have hle := fix_le_map (IOrder.monotone_of_imono hF)
+    (IMap.map_mono (PROP := PROP) (m := fun P => iprop(True -∗ P)) fun _ _ => wand_mono_right)
+    (fun _ _ => hT _) (fun _ _ => hA _)
   exact ⟨sep_symm.trans (wand_elim (hle n b))⟩
 
 example [∀ n b, Affine (F (fun n b => iprop(□ μ n b)) n b)]
     [∀ n b, Persistent (F (fun n b => iprop(□ μ n b)) n b)] (n : Nat) (b : Bool) :
     Persistent (μ n b) := by
-  have hle := IOrder.fix_le_imap (PROP := PROP) (IOrder.monotone_of_imono hF)
-    (m := fun P => iprop(□ P)) intuitionistically_mono (fun _ _ => intuitionistically_elim)
+  have hle := fix_le_map (IOrder.monotone_of_imono hF)
+    (IMap.map_mono (PROP := PROP) (m := fun P => iprop(□ P)) fun _ _ => intuitionistically_mono)
+    (fun _ _ => intuitionistically_elim)
     (fun _ _ => intuitionistically_of_intuitionistic.2)
   exact ⟨(hle n b).trans persistently_of_intuitionistically⟩
 
 example [∀ n b, Absorbing (μ n b)] [∀ n b, Persistent (F (fun n b => iprop(<pers> μ n b)) n b)]
     (n : Nat) (b : Bool) : Persistent (μ n b) := by
-  have hle := IOrder.fix_le_imap (PROP := PROP) (IOrder.monotone_of_imono hF)
-    (m := fun P => iprop(<pers> P)) persistently_mono (fun _ _ => persistently_elim)
+  have hle := fix_le_map (IOrder.monotone_of_imono hF)
+    (IMap.map_mono (PROP := PROP) (m := fun P => iprop(<pers> P)) fun _ _ => persistently_mono)
+    (fun _ _ => persistently_elim)
     (fun _ _ => Persistent.persistent)
   exact ⟨hle n b⟩
 
@@ -213,7 +215,7 @@ example {F' : (Nat → Bool → PROP) → Nat → Bool → PROP}
     (hF₂ : ∀ Φ Ψ : Nat → Bool → PROP, (∀ n b, Φ n b ≡{k}≡ Ψ n b) → ∀ n b, F' Φ n b ≡{k}≡ F' Ψ n b)
     (hFF : ∀ Φ n b, F Φ n b ≡{k}≡ F' Φ n b) (n : Nat) (b : Bool) :
     μ n b ≡{k}≡ fix F' (IOrder.monotone_of_imono hF') n b :=
-  IOrder.fix_dist PROP _ _ hF₂ hFF n b
+  fix_ne _ _ (fun Φ Ψ hΦΨ n b => (hFF Φ n b).trans (hF₂ Φ Ψ hΦΨ n b)) n b
 end
 
 section
@@ -241,8 +243,9 @@ example (Φ W : Nat → Bool → PROP) (hW : ∀ n b, W n b ⊢ iprop(Φ n b ∨
 
 example [∀ n b, Absorbing (F (fun n b => iprop(<absorb> ν n b)) n b)] (n : Nat) (b : Bool) :
     Absorbing (ν n b) := by
-  have hle := IOrder.fix_le_imap (PROP := PROP) (IOrder.monotone_of_imono hF)
-    (m := fun P => iprop(<absorb> P)) absorbingly_mono (fun _ _ => absorbingly_intro)
+  have hle := fix_le_map (IOrder.monotone_of_imono hF)
+    (IMap.map_mono (PROP := PROP) (m := fun P => iprop(<absorb> P)) fun _ _ => absorbingly_mono)
+    (fun _ _ => absorbingly_intro)
     (fun _ _ => Absorbing.absorbing)
   exact ⟨hle n b⟩
 
@@ -252,7 +255,7 @@ example {F' : (Nat → Bool → PROP) → Nat → Bool → PROP}
     (hF₂ : ∀ Φ Ψ : Nat → Bool → PROP, (∀ n b, Φ n b ≡{k}≡ Ψ n b) → ∀ n b, F' Φ n b ≡{k}≡ F' Ψ n b)
     (hFF : ∀ Φ n b, F Φ n b ≡{k}≡ F' Φ n b) (n : Nat) (b : Bool) :
     ν n b ≡{k}≡ fix F' (IOrder.monotone_of_imono hF') n b :=
-  IOrder.fix_dist PROP _ _ hF₂ hFF n b
+  fix_ne _ _ (fun Φ Ψ hΦΨ n b => (hFF Φ n b).trans (hF₂ Φ Ψ hΦΨ n b)) n b
 end
 
 /-! ## Curried laws for `partial_fixpoint` definitions -/
@@ -289,4 +292,4 @@ example (hF : ∀ Φ Ψ : Nat → Bool → PROP,
   exact IOrder.fix_iter hF Φ
 end
 
-end IrisTest.Pointwise
+end IrisTest.FixpointLaws

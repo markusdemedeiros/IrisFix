@@ -5,9 +5,9 @@ Authors: Markus de Medeiros
 -/
 module
 
-public import IrisFix.BI.Lib.Pointwise
+public import IrisFix.BI.Lib.Fixpoint
 
-/-! # Pointwise Banach fixpoints
+/-! # Iris Banach fixpoints
 
 The laws of the Banach fixpoint, stated with `IPoints.all`: a property holds at every point of a
 fixpoint `f = F f` if `F` preserves it at every point. -/
@@ -20,7 +20,9 @@ open BI OFE
 local bi PROP
 
 namespace IPoints
+open IPointsLim
 variable {PROP : Type _} [BI PROP] {X : Type _} [COFE X] [Inhabited X] [IPoints PROP X]
+  [IPointsLim PROP X]
 
 /-- `C` holds at every point of a fixpoint, if `F` preserves it, `C` survives limits, and some
 `c` satisfies it. -/

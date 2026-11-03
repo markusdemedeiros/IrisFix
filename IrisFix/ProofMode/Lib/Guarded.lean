@@ -5,7 +5,7 @@ Authors: Markus de Medeiros
 -/
 module
 
-public import IrisFix.BI.Lib.PointwiseBanach
+public import IrisFix.BI.Lib.FixpointBanach
 public import IrisFix.Algebra.Approx
 public import IrisFix.ProofMode.Lib.Fixpoint
 
@@ -48,7 +48,7 @@ meta def emitGuardedLaws (declName : Name) : TermElabM Unit := do
         (`absorbing, ``IPoints.fixpoint_absorbing), (`affine, ``IPoints.fixpoint_affine),
         (`persistent_absorbing, ``IPoints.fixpoint_persistent_absorbing),
         (`persistent_affine, ``IPoints.fixpoint_persistent_affine)] do
-      let law ← mkAppOptM lemma #[PROP, none, X, none, none, none, pre, none, fn, hf]
+      let law ← mkAppOptM lemma #[PROP, none, X, none, none, none, none, pre, none, fn, hf]
       emit suffix (← cleanup pre pre fn (← inferType law)) law
 
 @[command_elab iguardedCmd] meta def elabIguarded : CommandElab

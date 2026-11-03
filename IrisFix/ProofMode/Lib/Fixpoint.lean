@@ -5,7 +5,7 @@ Authors: Markus de Medeiros
 -/
 module
 
-public import IrisFix.BI.Lib.Pointwise
+public import IrisFix.BI.Lib.Fixpoint
 public meta import IrisFix.ProofMode.Lib.Monotone
 
 /-! # `ifix` and `icofix`
@@ -56,7 +56,7 @@ meta def stripMData (e : Expr) : CoreM Expr :=
     | .mdata _ e => .visit e
     | _ => .continue)
 
-/-- Unfold the `IOrder` operations and `IMono`, and fold the functional `F` into `pre` and
+/-- Unfold the pointwise operations and `IMono`, and fold the functional `F` into `pre` and
 `fix pre _` into `fn`. The quantifiers of the unfolded orders take the names of the parameters of
 the domain. -/
 meta def cleanup (F pre fn : Expr) (e : Expr) : MetaM Expr := do
@@ -70,7 +70,7 @@ meta def cleanup (F pre fn : Expr) (e : Expr) : MetaM Expr := do
     (post := fun e => do
       if e.isAppOfArity ``Lean.Order.fix 4 && e.getArg! 2 == pre then return .done fn
       let some n := e.getAppFn.constName? | return .continue
-      unless n ∈ [``IOrder.le, ``IOrder.meet, ``IOrder.map, ``IOrder.ne, ``IPoints.all,
+      unless n ∈ [``IOrder.le, ``IMeet.meet, ``IMap.map, ``INe.ne, ``IPoints.all,
         ``Lean.Order.PartialOrder.rel] do return .continue
       let some e' ← unfoldProjInst? e | return .continue
       let e' := e'.headBeta
@@ -79,7 +79,7 @@ meta def cleanup (F pre fn : Expr) (e : Expr) : MetaM Expr := do
         match e' with
         -- `ne` at an argument with an OFE binds two values: `x` and `x'`.
         | .forallE _ t (.forallE _ t' b bi') bi =>
-          if n == ``IOrder.ne then
+          if n == ``INe.ne then
             return .visit (.forallE x t (.forallE (x.appendAfter "'") t' b bi') bi)
           return .visit (.forallE x t e'.bindingBody! bi)
         | .app f (.lam _ t b bi) => return .visit (.app f (.lam x t b bi))
@@ -122,7 +122,7 @@ meta def emitLaws (declName : Name) (coind : Bool) : TermElabM Unit := do
         | some (.thmInfo t) => (t.value.instantiateLevelParams t.levelParams us).beta h.getAppArgs
         | _ => h
       | _ => h
-    let_expr IOrder.monotone_of_imono PROP _ _ _ _ _ iord _ hF := h'
+    let_expr IOrder.monotone_of_imono PROP _ _ _ iord _ hF := h'
       | throwError "ifix: unexpected monotonicity proof{indentExpr h'}"
     let fn ← mkLambdaFVars varying (mkAppN (.const declName us) params)
     -- `name.pre` and `name.pre_mono`.
@@ -145,17 +145,20 @@ meta def emitLaws (declName : Name) (coind : Bool) : TermElabM Unit := do
       emitThm (declName ++ `unfold) levels (← mkForallFVars (params ++ ys) type)
         (← mkLambdaFVars (params ++ ys) value)
     -- The generic laws, at `name.pre`.
-    let law (lemma : Name) := mkAppOptM lemma #[PROP, none, none, X, inst, none, iord, pre, hF]
+    let law (lemma : Name) := mkAppOptM lemma #[PROP, none, X, inst, iord, pre, hF]
     emit (if coind then `coiter else `iter) (← law ``IOrder.fix_iter)
     emit `strong_mono (← law ``IOrder.fix_strong_mono)
-    emit (if coind then `coind else `ind) (← law ``IOrder.fix_ind)
-    emit (if coind then `paco else `ind_wf) (← law ``IOrder.fix_ind_wf)
+    let lawMeet (lemma : Name) := mkAppOptM lemma #[PROP, none, X, inst, iord, pre, none, hF]
+    emit (if coind then `coind else `ind) (← lawMeet ``IOrder.fix_ind)
+    emit (if coind then `paco else `ind_wf) (← lawMeet ``IOrder.fix_ind_wf)
     -- `ne`, if an argument has an OFE.
-    if (iord.find? (·.isConstOf ``IOrder.instPiNE)).isSome then
-      emit `ne (← mkAppOptM ``IOrder.fix_ne #[PROP, none, none, X, inst, none, iord, pre, h])
+    let ineType := mkApp2 (← mkConstWithFreshMVarLevels ``INe) X inst
+    if let some ine ← observing? (synthInstance ineType) then
+      if (ine.find? (·.isConstOf ``INe.instPiNE)).isSome then
+        emit `ne (← mkAppOptM ``fix_ne #[X, inst, ine, pre, pre, h, h])
     -- The instances: the generic theorems, with their hypotheses as instance arguments.
     let inst (suffix lemma : Name) (hyps : Nat) : MetaM Unit := do
-      let value ← mkAppOptM lemma #[PROP, none, X, inst, none, iord, pre, h]
+      let value ← mkAppOptM lemma #[PROP, none, X, inst, none, none, pre, h]
       let type ← cleanup F pre fn (← inferType value)
       let type ← forallBoundedTelescope type hyps fun hs b => do
         withNewBinderInfos (hs.map (·.fvarId!, .instImplicit)) (mkForallFVars hs b)
