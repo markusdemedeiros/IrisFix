@@ -97,6 +97,7 @@ theorem exists_bound {P : Nat → Prop} (hP : ∀ {m n}, m ≤ n → P n → P m
     · exact ⟨k + 1, fun m => by grind⟩
     · exact ih h
 
+section CCPO
 variable [IsCOFE α] [Inhabited α]
 
 /-- Every chain has a point in all of its elements. -/
@@ -133,9 +134,13 @@ instance : CCPO (Approx α) where
     ⟨⟨inter c, x, precs c, inter_eq_ball hx⟩, fun _ =>
       ⟨fun h y hy S hS => h S hS y hy, fun h S hS y hy => h y hy S hS⟩⟩
 
+end CCPO
+
 /-! ## Lifting a function to approximations -/
 
-omit [IsCOFE α] in
+section Lift
+variable [Inhabited α]
+
 /-- The smallest ball containing `T`, or everything when `T` is empty. -/
 def hull (T : α → Prop) : Approx α :=
   ⟨fun z => ∀ m, prec T m → ∀ a, T a → a ≡{m}≡ z, by
@@ -146,17 +151,14 @@ def hull (T : α → Prop) : Approx α :=
     · exact ⟨default, fun _ => False, funext fun _ =>
         propext ⟨fun _ _ h => h.elim, fun _ _ _ a ha => (hne ⟨a, ha⟩).elim⟩⟩⟩
 
-omit [IsCOFE α] in
 theorem mem_hull {T : α → Prop} {a : α} (ha : T a) : (hull T).1 a :=
   fun _ hm _ hb => hm _ _ hb ha
 
-omit [IsCOFE α] in
 theorem prec_hull {T : α → Prop} {n : Nat} (hT : prec T n) (hne : ∃ a, T a) :
     prec (hull T).1 n :=
   let ⟨a, ha⟩ := hne
   fun _ _ hy hz => (hy n hT a ha).symm.trans (hz n hT a ha)
 
-omit [IsCOFE α] in
 /-- `hull` is monotone on nonempty sets. -/
 theorem hull_mono {T T' : α → Prop} (h : ∀ a, T' a → T a) (hne : ∃ a, T' a) :
     ∀ z, (hull T').1 z → (hull T).1 z :=
@@ -167,11 +169,9 @@ theorem hull_mono {T T' : α → Prop} (h : ∀ a, T' a → T a) (hne : ∃ a, T
 /-- Run `G` on every point of `S`. -/
 def lift (G : α → α) (S : Approx α) : Approx α := hull fun y => ∃ x, S.1 x ∧ y = G x
 
-omit [IsCOFE α] in
 theorem lift_mono (G : α → α) : monotone (lift G) :=
   fun _ S' h => hull_mono (fun _ ⟨x, hx, e⟩ => ⟨x, h x hx, e⟩) ⟨_, _, get_mem S', rfl⟩
 
-omit [IsCOFE α] in
 /-- For a contractive `G`, a fixpoint of `lift G` is a point, and a fixpoint of `G`. -/
 theorem lift_fix_get (G : α → α) [Contractive G] {S : Approx α} (hS : lift G S = S) :
     get S = G (get S) := by
@@ -187,9 +187,10 @@ theorem lift_fix_get (G : α → α) [Contractive G] {S : Approx α} (hS : lift 
   rw [hS] at hG
   exact OFE.eq_dist'.mpr fun n => hprec n _ _ (get_mem S) hG
 
-omit [Inhabited α] in
+end Lift
+
 /-- A fixpoint of `lift G` is the Banach fixpoint of `G`, whatever the default point. -/
-theorem get_eq_fixpoint {i j : Inhabited α} (G : α → α) [Contractive G] {S : Approx α}
+theorem get_eq_fixpoint [IsCOFE α] {i j : Inhabited α} (G : α → α) [Contractive G] {S : Approx α}
     (hS : @lift α _ i G S = S) : get S = @fixpoint α _ j G _ :=
   @fixpoint_unique α _ j G.toContractiveHom _ (@lift_fix_get α _ i G _ S hS)
 
@@ -197,33 +198,27 @@ end Approx
 
 /-! ## Approximation domains
 
-`IApprox X` gives `X` a domain of approximations `Dom X`: each `d : Dom X` has members, `hull`
-covers a set, and `get` picks a member. `Approx P` approximates `P`, and functions approximate
-functions pointwise. Lifting `G` to the domain is monotone, and for contractive `G` its fixpoint is
-the Banach fixpoint of `G`. -/
+`IApprox Pred Dom` makes the CCPO `Dom` a domain of approximations of `Pred`: each `d : Dom` has
+members, `hull` covers a set, and `get` picks a member. `Approx P` approximates `P`, and functions
+approximate functions pointwise. Lifting `G` to the domain is monotone, and for contractive `G` its
+fixpoint is the Banach fixpoint of `G`. -/
 
-/-- `Dom` approximates `X`. -/
-class IApprox (X : Type u) [OFE X] where
-  /-- The approximations of `X`. -/
-  Dom : Type u
-  [ccpo : CCPO Dom]
-  mem : Dom → X → Prop
-  hull : (X → Prop) → Dom
-  get : Dom → X
+/-- `Dom` approximates `Pred`. -/
+class IApprox (Pred : Type u) [OFE Pred] (Dom : Type v) [CCPO Dom] where
+  mem : Dom → Pred → Prop
+  hull : (Pred → Prop) → Dom
+  get : Dom → Pred
   mem_get (d : Dom) : mem d (get d)
-  mem_mono {d d' : Dom} (h : d ⊑ d') {x : X} : mem d' x → mem d x
-  mem_hull {T : X → Prop} {x : X} : T x → mem (hull T) x
-  hull_mono {T T' : X → Prop} : (∀ x, T' x → T x) → (∃ x, T' x) → hull T ⊑ hull T'
-  prec_hull {T : X → Prop} {n : Nat} : (∀ x y, T x → T y → x ≡{n}≡ y) → (∃ x, T x) →
+  mem_mono {d d' : Dom} (h : d ⊑ d') {x : Pred} : mem d' x → mem d x
+  mem_hull {T : Pred → Prop} {x : Pred} : T x → mem (hull T) x
+  hull_mono {T T' : Pred → Prop} : (∀ x, T' x → T x) → (∃ x, T' x) → hull T ⊑ hull T'
+  prec_hull {T : Pred → Prop} {n : Nat} : (∀ x y, T x → T y → x ≡{n}≡ y) → (∃ x, T x) →
     ∀ x y, mem (hull T) x → mem (hull T) y → x ≡{n}≡ y
 
 namespace IApprox
 
-instance {X : Type _} [OFE X] [IApprox X] : CCPO (Dom X) := ccpo
-
-noncomputable instance instApprox {P : Type _} [OFE P] [IsCOFE P] [Inhabited P] : IApprox P where
-  Dom := Approx P
-  ccpo := inferInstanceAs (CCPO (Approx P))
+noncomputable instance instApprox {P : Type _} [OFE P] [IsCOFE P] [Inhabited P] :
+    IApprox P (Approx P) where
   mem S x := S.1 x
   hull := Approx.hull
   get := Approx.get
@@ -233,10 +228,8 @@ noncomputable instance instApprox {P : Type _} [OFE P] [IsCOFE P] [Inhabited P] 
   hull_mono h hne := Approx.hull_mono h hne
   prec_hull hT hne := Approx.prec_hull hT hne
 
-instance instPi {ι : Type _} {β : ι → Type _} [∀ i, OFE (β i)] [∀ i, IApprox (β i)] :
-    IApprox (∀ i, β i) where
-  Dom := ∀ i, Dom (β i)
-  ccpo := inferInstanceAs (CCPO (∀ i, Dom (β i)))
+instance instPi {ι : Type _} {β : ι → Type _} {Dom : ι → Type _} [∀ i, OFE (β i)]
+    [∀ i, CCPO (Dom i)] [∀ i, IApprox (β i) (Dom i)] : IApprox (∀ i, β i) (∀ i, Dom i) where
   mem f g := ∀ i, mem (f i) (g i)
   hull T i := hull fun y => ∃ g, T g ∧ g i = y
   get f i := get (f i)
@@ -252,23 +245,23 @@ instance instPi {ι : Type _} {β : ι → Type _} [∀ i, OFE (β i)] [∀ i, I
     rintro _ _ ⟨g₁, h₁, rfl⟩ ⟨g₂, h₂, rfl⟩
     exact hT g₁ g₂ h₁ h₂ i
 
-variable {X : Type _} [OFE X] [IApprox X]
+variable {Pred : Type _} [OFE Pred] {Dom : Type _} [CCPO Dom] [IApprox Pred Dom]
 
 /-- Run `G` on every member of `d`. -/
-def lift (G : X → X) (d : Dom X) : Dom X := hull fun y => ∃ x, mem d x ∧ y = G x
+def lift (G : Pred → Pred) (d : Dom) : Dom := hull fun y => ∃ x, mem d x ∧ y = G x
 
-theorem lift_mono (G : X → X) : monotone (lift G) :=
+theorem lift_mono (G : Pred → Pred) : monotone (lift (Dom := Dom) G) :=
   fun _ d' h => hull_mono (fun _ ⟨x, hx, e⟩ => ⟨x, mem_mono h hx, e⟩) ⟨_, _, mem_get d', rfl⟩
 
 /-- For a contractive `G`, the point of a fixpoint of `lift G` is a fixpoint of `G`. -/
-theorem lift_fix_get (G : X → X) [Contractive G] {d : Dom X} (hd : lift G d = d) :
+theorem lift_fix_get (G : Pred → Pred) [Contractive G] {d : Dom} (hd : lift G d = d) :
     get d = G (get d) := by
   -- Each application of `G` gains a level of precision.
-  have hprec n : ∀ x y : X, mem d x → mem d y → x ≡{n}≡ y := by
+  have hprec n : ∀ x y : Pred, mem d x → mem d y → x ≡{n}≡ y := by
     induction n using Nat.strongRecOn with
     | ind n ih =>
       rw [← hd]
-      refine prec_hull (X := X) ?_ ⟨_, _, mem_get d, rfl⟩
+      refine prec_hull (Pred := Pred) ?_ ⟨_, _, mem_get d, rfl⟩
       rintro _ _ ⟨x, hx, rfl⟩ ⟨y, hy, rfl⟩
       exact Contractive.distLater_dist fun m hm => ih m hm x y hx hy
   have hG : mem (lift G d) (G (get d)) := mem_hull ⟨_, mem_get d, rfl⟩
@@ -276,7 +269,7 @@ theorem lift_fix_get (G : X → X) [Contractive G] {d : Dom X} (hd : lift G d = 
   exact OFE.eq_dist'.mpr fun n => hprec n _ _ (mem_get d) hG
 
 /-- A fixpoint of `lift G` is the Banach fixpoint of `G`. -/
-theorem lift_eq_fixpoint [IsCOFE X] [Inhabited X] (G : X → X) [Contractive G] {d : Dom X}
+theorem lift_eq_fixpoint [IsCOFE Pred] [Inhabited Pred] (G : Pred → Pred) [Contractive G] {d : Dom}
     (hd : lift G d = d) : get d = fixpoint G :=
   fixpoint_unique (f := G.toContractiveHom) (lift_fix_get G hd)
 

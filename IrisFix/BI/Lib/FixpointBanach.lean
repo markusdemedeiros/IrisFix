@@ -21,18 +21,19 @@ local bi PROP
 
 namespace IPoints
 open IPointsLim
-variable {PROP : Type _} [BI PROP] {X : Type _} [COFE X] [Inhabited X] [IPoints PROP X]
-  [IPointsLim PROP X]
+variable {PROP : Type _} [BI PROP] {Pred : Type _} [COFE Pred] [Inhabited Pred] [IPoints PROP Pred]
+  [IPointsLim PROP Pred]
 
 /-- `C` holds at every point of a fixpoint, if `F` preserves it, `C` survives limits, and some
 `c` satisfies it. -/
-theorem fixpoint_all {C : PROP → Prop} (hC : LimitPreserving C) {c : PROP} (hc : C c) (F : X → X)
-    [Contractive F] {f : X} (hf : f = F f) (h : ∀ Φ, all C Φ → all C (F Φ)) : all C f := by
+theorem fixpoint_all {C : PROP → Prop} (hC : LimitPreserving C) {c : PROP} (hc : C c)
+    (F : Pred → Pred)
+    [Contractive F] {f : Pred} (hf : f = F f) (h : ∀ Φ, all C Φ → all C (F Φ)) : all C f := by
   rw [fixpoint_unique (f := F.toContractiveHom) hf]
   exact ContractiveHom.fixpoint_ind ⟨F, inferInstance⟩ (all C) (const c) (all_const hc) h
     (all_lim hC)
 
-variable (F : X → X) [Contractive F] {f : X} (hf : f = F f)
+variable (F : Pred → Pred) [Contractive F] {f : Pred} (hf : f = F f)
 include hf
 
 theorem fixpoint_persistent :

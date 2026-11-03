@@ -55,16 +55,16 @@ theorem fix_rel [CCPO α] {F₁ F₂ : α → α} (h₁ : monotone F₁) (h₂ :
 end Order
 
 section Park
-variable {X : Sort _} [CCPO X] {F : X → X} (hF : monotone F)
+variable {α : Sort _} [CCPO α] {F : α → α} (hF : monotone F)
 
 /-- Park induction: the fixpoint is below every prefixpoint. -/
-theorem fix_le_of {E : X} (hE : F E ⊑ E) : fix F hF ⊑ E :=
+theorem fix_le_of {E : α} (hE : F E ⊑ E) : fix F hF ⊑ E :=
   fix_induct hF (· ⊑ E) (fun _ => Lean.Order.csup_le) fun _ h =>
     PartialOrder.rel_trans (hF _ _ h) hE
 
 /-- The fixpoint is below `m` of itself, for a monotone `m` below the identity at the fixpoint,
 if `F (m (fix F))` is below `m` of itself. -/
-theorem fix_le_map {m : X → X} (hm : monotone m) (hle : m (fix F hF) ⊑ fix F hF)
+theorem fix_le_map {m : α → α} (hm : monotone m) (hle : m (fix F hF) ⊑ fix F hF)
     (h : F (m (fix F hF)) ⊑ m (F (m (fix F hF)))) : fix F hF ⊑ m (fix F hF) :=
   fix_le_of hF <| PartialOrder.rel_trans h <| hm _ _ <|
     PartialOrder.rel_trans (hF _ _ hle) (PartialOrder.rel_of_eq (fix_eq hF).symm)
@@ -73,15 +73,15 @@ end Park
 
 /-! ## Indexed relations that sups preserve -/
 
-/-- The `CCPO X` has an indexed relation, and supremums preserve it. -/
-class INe (X : Type _) [CCPO X] where
-  ne : Nat → X → X → Prop
-  ne_csup {n : Nat} {c₁ c₂ : X → Prop} (hc₁ : chain c₁) (hc₂ : chain c₂) :
+/-- The `CCPO α` has an indexed relation, and supremums preserve it. -/
+class INe (α : Type _) [CCPO α] where
+  ne : Nat → α → α → Prop
+  ne_csup {n : Nat} {c₁ c₂ : α → Prop} (hc₁ : chain c₁) (hc₂ : chain c₂) :
     liftRel (ne n) c₁ c₂ → ne n (CCPO.csup hc₁) (CCPO.csup hc₂)
 
 /-- Related sets of functions have related sets of values at each point. -/
-theorem liftRel_apply {α : Sort _} {β : α → Sort _} {R : ∀ x, β x → β x → Prop}
-    {c₁ c₂ : (∀ x, β x) → Prop} (h : liftRel (fun f g => ∀ x, R x (f x) (g x)) c₁ c₂) (x : α) :
+theorem liftRel_apply {ι : Sort _} {β : ι → Sort _} {R : ∀ x, β x → β x → Prop}
+    {c₁ c₂ : (∀ x, β x) → Prop} (h : liftRel (fun f g => ∀ x, R x (f x) (g x)) c₁ c₂) (x : ι) :
     liftRel (R x) (fun v => ∃ f, c₁ f ∧ f x = v) (fun v => ∃ g, c₂ g ∧ g x = v) := by
   refine ⟨fun v ⟨f, hf, hv⟩ => ?_, fun v ⟨g, hg, hv⟩ => ?_⟩
   · obtain ⟨g, hg, hfg⟩ := h.1 f hf
@@ -90,7 +90,7 @@ theorem liftRel_apply {α : Sort _} {β : α → Sort _} {R : ∀ x, β x → β
     exact ⟨f x, ⟨f, hf, rfl⟩, hv ▸ hfg x⟩
 
 section Pi
-variable {α : Type _} {β : α → Type _}
+variable {ι : Type _} {β : ι → Type _}
 open INe
 
 /-- An argument without an OFE: `ne` at every point. -/
@@ -101,8 +101,8 @@ instance INe.instPi [∀ x, CCPO (β x)] [∀ x, INe (β x)] : INe (∀ x, β x)
     exact ne_csup _ _ (liftRel_apply hc x)
 
 /-- An argument with an OFE: `ne n` at `≡{n}≡` arguments. -/
-instance (priority := high) INe.instPiNE {α β : Type _} [OFE α] [CCPO β] [INe β] :
-    INe (α → β) where
+instance (priority := high) INe.instPiNE {ι β : Type _} [OFE ι] [CCPO β] [INe β] :
+    INe (ι → β) where
   ne n f g := ∀ x x', x ≡{n}≡ x' → ne n (f x) (g x')
   ne_csup hc₁ hc₂ hc x x' hx := by
     rw [← fun_csup_eq, ← fun_csup_eq]
@@ -117,7 +117,7 @@ end Pi
 
 /-- Fixpoints of bodies that preserve `ne n` are `ne n`. At `F₁ = F₂`, the fixpoint is
 non-expansive in the arguments with OFEs; at arguments without, it is non-expansive in the body. -/
-theorem fix_ne {X : Type _} [CCPO X] [INe X] {F₁ F₂ : X → X} (h₁ : monotone F₁)
+theorem fix_ne {α : Type _} [CCPO α] [INe α] {F₁ F₂ : α → α} (h₁ : monotone F₁)
     (h₂ : monotone F₂) {n : Nat} (hF : ∀ f g, INe.ne n f g → INe.ne n (F₁ f) (F₂ g)) :
     INe.ne n (fix F₁ h₁) (fix F₂ h₂) :=
   fix_rel h₁ h₂ INe.ne_csup hF

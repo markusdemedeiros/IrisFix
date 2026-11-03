@@ -11,15 +11,16 @@ import all Init.Internal.Order.Basic
 
 /-! # Iris fixpoints
 
-`partial_fixpoint` takes fixpoints in a CCPO `X`. Here `X` is a family of propositions (`PROP`,
-`A → PROP`, …), and each class below lifts one notion from `PROP` to `X`, a point at a time:
+`partial_fixpoint` takes fixpoints in a CCPO `Pred`. Here `Pred` is a family of propositions
+(`PROP`, `A → PROP`, …), and each class below lifts one notion from `PROP` to `Pred`, a point at a
+time:
 
-* `IPoints PROP X`: `all C a`, the property `C` at every point of `a`.
-* `IPointsLim PROP X`: `all` survives limits, and constant families. For the Banach laws.
-* `IOrder PROP X`: `a ⊑ᵢ b`, the order of `X`, inside the BI. For induction.
-* `IMeet PROP X`: `a ⊓ᵢ b`, the binary meet of `X`. For strong induction.
-* `IMap PROP X`: `map m a`, an operator `m` on `PROP` at every point. For the instances.
-* `INe X` (in `IrisFix.Std.Order`): `ne n`, agreement up to `n`, jointly in the arguments that
+* `IPoints PROP Pred`: `all C a`, the property `C` at every point of `a`.
+* `IPointsLim PROP Pred`: `all` survives limits, and constant families. For the Banach laws.
+* `IOrder PROP Pred`: `a ⊑ᵢ b`, the order of `Pred`, inside the BI. For induction.
+* `IMeet PROP Pred`: `a ⊓ᵢ b`, the binary meet of `Pred`. For strong induction.
+* `IMap PROP Pred`: `map m a`, an operator `m` on `PROP` at every point. For the instances.
+* `INe Pred` (in `IrisFix.Std.Order`): `ne n`, agreement up to `n`, jointly in the arguments that
   have OFEs.
 
 Entailment (`MonotoneFixpoint`) and reverse entailment (`CoMonotoneFixpoint`) make `PROP` a CCPO,
@@ -37,68 +38,68 @@ open BI Lean.Order
 local bi PROP
 
 /-! ## Embedding classes
-The classes in this section represent different ways that `PROP` lifts to `X`.
-The canonical example to keep in mind is families of propositions `X := A → PROP`: the classes here
-outline how different aspects of `PROP` may lift to families of propositions.-/
+The classes in this section represent different ways that `PROP` lifts to `Pred`.
+The canonical example to keep in mind is families of propositions `Pred := A → PROP`: the classes
+here outline how different aspects of `PROP` may lift to families of propositions.-/
 
-/-- Properties of propositions lift to `X`: `all C a` says `C` holds at every proposition in `a`.
-For example, with `X := A → PROP`, one could define `all C F := ∀ a : A, C (F a)`. -/
-class IPoints (PROP : Type _) [BI PROP] (X : Type _) where
-  all : (PROP → Prop) → X → Prop
-  all_imp {C D : PROP → Prop} (h : ∀ P, C P → D P) {a : X} : all C a → all D a
-  all_and {C D : PROP → Prop} {a : X} : all C a → all D a → all (fun P => C P ∧ D P) a
-  all_forall {C : PROP → Prop} (h : ∀ P, C P) (a : X) : all C a
+/-- Properties of propositions lift to `Pred`: `all C a` says `C` holds at every proposition in `a`.
+For example, with `Pred := A → PROP`, one could define `all C F := ∀ a : A, C (F a)`. -/
+class IPoints (PROP : Type _) [BI PROP] (Pred : Type _) where
+  all : (PROP → Prop) → Pred → Prop
+  all_imp {C D : PROP → Prop} (h : ∀ P, C P → D P) {a : Pred} : all C a → all D a
+  all_and {C D : PROP → Prop} {a : Pred} : all C a → all D a → all (fun P => C P ∧ D P) a
+  all_forall {C : PROP → Prop} (h : ∀ P, C P) (a : Pred) : all C a
 
 open IPoints
 
 /-- `all` preserves limits, and every proposition `c` lifts to the constant family `const c`.
-For example, with `X := A → PROP`, `const c := fun _ => c`. -/
-class IPointsLim (PROP : Type _) [BI PROP] (X : Type _) [COFE X] [IPoints PROP X] where
-  all_lim {C : PROP → Prop} : LimitPreserving C → LimitPreserving (all C : X → Prop)
-  const : PROP → X
+For example, with `Pred := A → PROP`, `const c := fun _ => c`. -/
+class IPointsLim (PROP : Type _) [BI PROP] (Pred : Type _) [COFE Pred] [IPoints PROP Pred] where
+  all_lim {C : PROP → Prop} : LimitPreserving C → LimitPreserving (all C : Pred → Prop)
+  const : PROP → Pred
   all_const {C : PROP → Prop} {c : PROP} : C c → all C (const c)
 
 /-- The order `le` embeds into `PROP` as an Iris proposition. -/
-class IOrder (PROP : Type _) [BI PROP] (X : Type _) [CCPO X] where
-  le : X → X → PROP
-  rel_iff {a b : X} : a ⊑ b ↔ ⊢ le a b
-  trans {a b c : X} : ⊢ le a b -∗ le b c -∗ le a c
-  csup_le {c : X → Prop} (hc : chain c) {R : PROP} {g : X} :
+class IOrder (PROP : Type _) [BI PROP] (Pred : Type _) [CCPO Pred] where
+  le : Pred → Pred → PROP
+  rel_iff {a b : Pred} : a ⊑ b ↔ ⊢ le a b
+  trans {a b c : Pred} : ⊢ le a b -∗ le b c -∗ le a c
+  csup_le {c : Pred → Prop} (hc : chain c) {R : PROP} {g : Pred} :
     (∀ f, c f → R ⊢ le f g) → R ⊢ le (CCPO.csup hc) g
 
-/-- The order of `X`, inside the BI `bi%`. -/
+/-- The order of `Pred`, inside the BI `bi%`. -/
 macro:50 a:term:51 " ⊑ᵢ " b:term:51 : term => ``(IOrder.le (PROP := bi%) $a $b)
 
-/-- The binary meet `X` is compatible with an embedding of a CCPO into Iris. -/
-class IMeet (PROP : Type _) [BI PROP] (X : Type _) [CCPO X] [IOrder PROP X] where
-  meet : X → X → X
-  meet_l {a b : X} : meet a b ⊑ a
-  meet_r {a b : X} : meet a b ⊑ b
-  meet_intro {a b c : X} :
+/-- The binary meet `Pred` is compatible with an embedding of a CCPO into Iris. -/
+class IMeet (PROP : Type _) [BI PROP] (Pred : Type _) [CCPO Pred] [IOrder PROP Pred] where
+  meet : Pred → Pred → Pred
+  meet_l {a b : Pred} : meet a b ⊑ a
+  meet_r {a b : Pred} : meet a b ⊑ b
+  meet_intro {a b c : Pred} :
     ⊢ IOrder.le (PROP := PROP) a b ∧ IOrder.le a c -∗ IOrder.le a (meet b c)
 
-/-- The binary meet of `X`, for the BI `bi%`. -/
+/-- The binary meet of `Pred`, for the BI `bi%`. -/
 macro:69 a:term:70 " ⊓ᵢ " b:term:70 : term => ``(IMeet.meet (PROP := bi%) $a $b)
 
-/-- Functions on `PROP` lift to functions on `X`.
-For example, with `X := A → PROP`, one can lift maps `f : PROP → PROP` into maps on
+/-- Functions on `PROP` lift to functions on `Pred`.
+For example, with `Pred := A → PROP`, one can lift maps `f : PROP → PROP` into maps on
 `fun (x : A → PROP) (a : A) => f (x a)`. This class requires the lifting on maps to be compatible
 with universal quantification. -/
-class IMap (PROP : Type _) [BI PROP] [PartialOrder PROP] (X : Type _) [PartialOrder X]
-    [IPoints PROP X] where
-  map : (PROP → PROP) → X → X
+class IMap (PROP : Type _) [BI PROP] [PartialOrder PROP] (Pred : Type _) [PartialOrder Pred]
+    [IPoints PROP Pred] where
+  map : (PROP → PROP) → Pred → Pred
   map_mono {m : PROP → PROP} (hm : monotone m) : monotone (map m)
-  all_le {C : PROP → Prop} {m : PROP → PROP} (h : ∀ P, C P ↔ P ⊑ m P) (a : X) :
+  all_le {C : PROP → Prop} {m : PROP → PROP} (h : ∀ P, C P ↔ P ⊑ m P) (a : Pred) :
     all C a ↔ a ⊑ map m a
-  map_le {m : PROP → PROP} {a : X} : all (fun P => m P ⊑ P) a → map m a ⊑ a
-  map_const {c : PROP} {a b : X} : map (fun _ => c) a = map (fun _ => c) b
+  map_le {m : PROP → PROP} {a : Pred} : all (fun P => m P ⊑ P) a → map m a ⊑ a
+  map_const {c : PROP} {a b : Pred} : map (fun _ => c) a = map (fun _ => c) b
 
 open IPointsLim IOrder IMeet IMap INe
 
 /-! ## Functions, pointwise -/
 
 section Pi
-variable {PROP : Type _} [BI PROP] {α : Type _} {β : α → Type _}
+variable {PROP : Type _} [BI PROP] {ι : Type _} {β : ι → Type _}
 
 instance IPoints.instProp : IPoints PROP PROP where
   all C P := C P
@@ -269,13 +270,13 @@ end CoMonotoneFixpoint
 namespace IOrder
 
 section Laws
-variable {PROP : Type _} [BI PROP] {X : Type _} [CCPO X] [IOrder PROP X]
+variable {PROP : Type _} [BI PROP] {Pred : Type _} [CCPO Pred] [IOrder PROP Pred]
 
 /-- `F` is monotone inside the BI. -/
-def IMono (PROP : Type _) [BI PROP] [IOrder PROP X] (F : X → X) : Prop :=
-  ∀ Φ Ψ : X, ⊢ □ (Φ ⊑ᵢ Ψ) -∗ F Φ ⊑ᵢ F Ψ
+def IMono (PROP : Type _) [BI PROP] [IOrder PROP Pred] (F : Pred → Pred) : Prop :=
+  ∀ Φ Ψ : Pred, ⊢ □ (Φ ⊑ᵢ Ψ) -∗ F Φ ⊑ᵢ F Ψ
 
-variable {F : X → X}
+variable {F : Pred → Pred}
 
 theorem monotone_of_imono (hF : IMono PROP F) : monotone F := fun Φ Ψ hΦΨ =>
     (rel_iff (PROP := PROP)).2 <| by
@@ -284,7 +285,7 @@ theorem monotone_of_imono (hF : IMono PROP F) : monotone F := fun Φ Ψ hΦΨ =>
   iapply rel_iff.1 hΦΨ
 
 /-- Iris induction, in the order `⊑ᵢ`. -/
-theorem fix_iter (hF : IMono PROP F) (Φ : X) :
+theorem fix_iter (hF : IMono PROP F) (Φ : Pred) :
     ⊢ □ (F Φ ⊑ᵢ Φ) -∗ fix F (monotone_of_imono hF) ⊑ᵢ Φ :=
   entails_wand <| fix_induct _ (fun f => iprop(□ (F Φ ⊑ᵢ Φ)) ⊢ f ⊑ᵢ Φ)
     (fun _ hc => csup_le hc) fun f ih => by
@@ -295,7 +296,7 @@ theorem fix_iter (hF : IMono PROP F) (Φ : X) :
   iapply ih $$ H
 
 /-- The fixpoint is below every prefixpoint `g` of a larger body `G`. -/
-theorem fix_strong_mono (hF : IMono PROP F) (G : X → X) (g : X) (hg : G g ⊑ g) :
+theorem fix_strong_mono (hF : IMono PROP F) (G : Pred → Pred) (g : Pred) (hg : G g ⊑ g) :
     ⊢ □ (∀ Φ, F Φ ⊑ᵢ G Φ) -∗ fix F (monotone_of_imono hF) ⊑ᵢ g := by
   iintro #H
   iapply fix_iter hF
@@ -304,10 +305,10 @@ theorem fix_strong_mono (hF : IMono PROP F) (G : X → X) (g : X) (hg : G g ⊑ 
   · iapply H
   · iapply rel_iff.1 hg
 
-variable [IMeet PROP X]
+variable [IMeet PROP Pred]
 
 /-- Strong induction: the hypothesis also gets the fixpoint, through `meet`. -/
-theorem fix_ind (hF : IMono PROP F) (Φ : X) :
+theorem fix_ind (hF : IMono PROP F) (Φ : Pred) :
     ⊢ □ (F (Φ ⊓ᵢ fix F (monotone_of_imono hF)) ⊑ᵢ Φ) -∗ fix F (monotone_of_imono hF) ⊑ᵢ Φ := by
   have hfix := monotone_of_imono hF
   iintro #H
@@ -327,7 +328,7 @@ theorem fix_ind (hF : IMono PROP F) (Φ : X) :
 
 /-- Well-founded induction, for `W` above `meet Φ (F W)`. In the reverse order, this is
 parameterized coinduction. -/
-theorem fix_ind_wf (hF : IMono PROP F) (Φ W : X) (hW : Φ ⊓ᵢ F W ⊑ W) :
+theorem fix_ind_wf (hF : IMono PROP F) (Φ W : Pred) (hW : Φ ⊓ᵢ F W ⊑ W) :
     ⊢ □ (F W ⊑ᵢ Φ) -∗ fix F (monotone_of_imono hF) ⊑ᵢ Φ := by
   have hfix := monotone_of_imono hF
   iintro #H
@@ -368,8 +369,8 @@ private theorem absorbing_true_wand {PROP : Type _} [BI PROP] (P : PROP) [Absorb
 /-! ### The instances, at every point -/
 
 section All
-variable {PROP : Type _} [BI PROP] [PartialOrder PROP] {X : Type _} [CCPO X] [IPoints PROP X]
-  [IMap PROP X] {F : X → X} (hF : monotone F)
+variable {PROP : Type _} [BI PROP] [PartialOrder PROP] {Pred : Type _} [CCPO Pred]
+  [IPoints PROP Pred] [IMap PROP Pred] {F : Pred → Pred} (hF : monotone F)
 include hF
 
 /-- `C` at every point of the fixpoint, for `C P ↔ P ⊑ m P` and `m` below the identity there. -/
@@ -382,8 +383,8 @@ end All
 
 section Lfp
 open MonotoneFixpoint
-variable {PROP : Type _} [BI PROP] {X : Type _} [CCPO X] [IPoints PROP X] [IMap PROP X]
-  {F : X → X} (hF : monotone F)
+variable {PROP : Type _} [BI PROP] {Pred : Type _} [CCPO Pred] [IPoints PROP Pred] [IMap PROP Pred]
+  {F : Pred → Pred} (hF : monotone F)
 include hF
 
 theorem lfp_affine
@@ -421,8 +422,8 @@ end Lfp
 
 section Gfp
 open CoMonotoneFixpoint
-variable {PROP : Type _} [BI PROP] {X : Type _} [CCPO X] [IPoints PROP X] [IMap PROP X]
-  {F : X → X} (hF : monotone F)
+variable {PROP : Type _} [BI PROP] {Pred : Type _} [CCPO Pred] [IPoints PROP Pred] [IMap PROP Pred]
+  {F : Pred → Pred} (hF : monotone F)
 include hF
 
 theorem gfp_absorbing

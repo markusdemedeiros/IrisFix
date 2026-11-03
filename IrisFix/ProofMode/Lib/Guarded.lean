@@ -57,17 +57,19 @@ meta def emitGuardedLaws (declName : Name) : TermElabM Unit := do
     let pre := mkIdentFrom name (name.getId ++ `pre)
     let approx := mkIdentFrom name (name.getId ++ `approx)
     let sig ← if binders.isEmpty then pure ty else `(∀ $binders*, $ty)
+    -- The approximations of `sig`: `Approx` at the result, pointwise in the parameters.
+    let dom ← if binders.isEmpty then `(Iris.Approx $ty) else `(∀ $binders*, Iris.Approx $ty)
     let lam ← if binders.isEmpty then pure body else `(fun $(binders.map (⟨·.raw⟩))* => $body)
     elabCommand (← `(command| @[reducible] def $pre : $sig → $sig := fun ($name : $sig) => $lam))
     elabCommand (← `(command|
       instance : Iris.OFE.Contractive ($pre : $sig → $sig) where distLater_dist := by $tac))
     elabCommand (← `(command|
-      noncomputable def $approx : Iris.IApprox.Dom $sig :=
+      noncomputable def $approx : $dom :=
         Iris.IApprox.lift ($pre : $sig → $sig) $approx
       partial_fixpoint monotonicity fun _ _ h => Iris.IApprox.lift_mono _ _ _ h))
     -- TODO: the modifiers `mods`; `noncomputable` is one of them.
     let _ := mods
-    elabCommand (← `(command| noncomputable def $name : $sig := Iris.IApprox.get $approx))
+    elabCommand (← `(command| noncomputable def $name : $sig := Iris.IApprox.get ($approx : $dom)))
     let eqFix := mkIdentFrom name (name.getId ++ `eq_fixpoint)
     let unfoldFun := mkIdentFrom name (name.getId ++ `unfold_fun)
     let eqn := mkIdentFrom name (approx.getId ++ `eq_1)
