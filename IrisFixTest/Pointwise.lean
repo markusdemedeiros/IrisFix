@@ -16,127 +16,128 @@ local bi PROP
 
 variable {PROP : Type _} [BI PROP]
 
-/-! ## The generic law is the unary laws -/
+/-! ## The generic law is the unary laws
+
+`h : IMono PROP F` is monotonicity in the order of the open scope. -/
 
 section
-variable {A : Type _} {F : (A → PROP) → A → PROP} (h : BIMono F)
+variable {A : Type _} {F : (A → PROP) → A → PROP}
+
+-- The least (`μ`) and greatest (`ν`) fixpoint, at the `h` of each example.
+set_option hygiene false in
+local notation "μ" => fix F (IOrder.monotone_of_imono h)
+set_option hygiene false in
+local notation "ν" => fix F (IOrder.monotone_of_imono h)
 
 open MonotoneFixpoint in
-example (Φ : A → PROP) : ⊢ □ (∀ x, F Φ x -∗ Φ x) -∗ ∀ x, lfp F h x -∗ Φ x :=
+example (h : IOrder.IMono PROP F) (Φ : A → PROP) : ⊢ □ (∀ x, F Φ x -∗ Φ x) -∗ ∀ x, μ x -∗ Φ x :=
   IOrder.fix_iter h Φ
 
 open CoMonotoneFixpoint in
-example (Φ : A → PROP) : ⊢ □ (∀ x, Φ x -∗ F Φ x) -∗ ∀ x, Φ x -∗ gfp F h x :=
-  IOrder.fix_iter (fun Φ Ψ => h Ψ Φ) Φ
+example (h : IOrder.IMono PROP F) (Φ : A → PROP) : ⊢ □ (∀ x, Φ x -∗ F Φ x) -∗ ∀ x, Φ x -∗ ν x :=
+  IOrder.fix_iter h Φ
 
 open MonotoneFixpoint in
-example (G : (A → PROP) → A → PROP) (g : A → PROP) (hg : ∀ x, G g x ⊢ g x) :
-    ⊢ □ (∀ Φ x, F Φ x -∗ G Φ x) -∗ ∀ x, lfp F h x -∗ g x :=
+example (h : IOrder.IMono PROP F) (G : (A → PROP) → A → PROP) (g : A → PROP)
+    (hg : ∀ x, G g x ⊢ g x) : ⊢ □ (∀ Φ x, F Φ x -∗ G Φ x) -∗ ∀ x, μ x -∗ g x :=
   IOrder.fix_strong_mono h G g hg
 
 open CoMonotoneFixpoint in
-example (G : (A → PROP) → A → PROP) (g : A → PROP) (hg : ∀ x, g x ⊢ G g x) :
-    ⊢ □ (∀ Φ x, G Φ x -∗ F Φ x) -∗ ∀ x, g x -∗ gfp F h x :=
-  IOrder.fix_strong_mono (fun Φ Ψ => h Ψ Φ) G g hg
+example (h : IOrder.IMono PROP F) (G : (A → PROP) → A → PROP) (g : A → PROP)
+    (hg : ∀ x, g x ⊢ G g x) : ⊢ □ (∀ Φ x, G Φ x -∗ F Φ x) -∗ ∀ x, g x -∗ ν x :=
+  IOrder.fix_strong_mono h G g hg
 
 open MonotoneFixpoint in
-example (Φ : A → PROP) :
-    ⊢ □ (∀ x, F (fun y => iprop(Φ y ∧ lfp F h y)) x -∗ Φ x) -∗ ∀ x, lfp F h x -∗ Φ x :=
+example (h : IOrder.IMono PROP F) (Φ : A → PROP) :
+    ⊢ □ (∀ x, F (fun y => iprop(Φ y ∧ μ y)) x -∗ Φ x) -∗ ∀ x, μ x -∗ Φ x :=
   IOrder.fix_ind h Φ
 
 open CoMonotoneFixpoint in
-example (Φ : A → PROP) :
-    ⊢ □ (∀ x, Φ x -∗ F (fun y => iprop(Φ y ∨ gfp F h y)) x) -∗ ∀ x, Φ x -∗ gfp F h x :=
-  IOrder.fix_ind (fun Φ Ψ => h Ψ Φ) Φ
+example (h : IOrder.IMono PROP F) (Φ : A → PROP) :
+    ⊢ □ (∀ x, Φ x -∗ F (fun y => iprop(Φ y ∨ ν y)) x) -∗ ∀ x, Φ x -∗ ν x :=
+  IOrder.fix_ind h Φ
 
 open MonotoneFixpoint in
-example (Φ W : A → PROP) (hW : ∀ x, iprop(Φ x ∧ F W x) ⊢ W x) :
-    ⊢ □ (∀ x, F W x -∗ Φ x) -∗ ∀ x, lfp F h x -∗ Φ x :=
+example (h : IOrder.IMono PROP F) (Φ W : A → PROP) (hW : ∀ x, iprop(Φ x ∧ F W x) ⊢ W x) :
+    ⊢ □ (∀ x, F W x -∗ Φ x) -∗ ∀ x, μ x -∗ Φ x :=
   IOrder.fix_ind_wf h Φ W hW
 
 open CoMonotoneFixpoint in
-example (Φ W : A → PROP) (hW : ∀ x, W x ⊢ iprop(Φ x ∨ F W x)) :
-    ⊢ □ (∀ x, Φ x -∗ F W x) -∗ ∀ x, Φ x -∗ gfp F h x :=
-  IOrder.fix_ind_wf (fun Φ Ψ => h Ψ Φ) Φ W hW
-end
-
-section
-variable {A : Type _} {F : (A → PROP) → A → PROP} (h : BIMono F)
+example (h : IOrder.IMono PROP F) (Φ W : A → PROP) (hW : ∀ x, W x ⊢ iprop(Φ x ∨ F W x)) :
+    ⊢ □ (∀ x, Φ x -∗ F W x) -∗ ∀ x, Φ x -∗ ν x :=
+  IOrder.fix_ind_wf h Φ W hW
 
 section
 open MonotoneFixpoint
 
 -- Park induction alone, at a constant.
-example [∀ x, Affine (F (fun _ => iprop(emp)) x)] (x : A) : Affine (lfp F h x) :=
-  ⟨IOrder.fix_le_of (monotone_of_bimono h) (E := fun _ => iprop(emp)) (fun _ => Affine.affine) x⟩
+example (h : IOrder.IMono PROP F) [∀ x, Affine (F (fun _ => iprop(emp)) x)] (x : A) :
+    Affine (μ x) :=
+  ⟨IOrder.fix_le_of (IOrder.monotone_of_imono h) (E := fun _ => iprop(emp))
+    (fun _ => Affine.affine) x⟩
 
-example [∀ x, Absorbing (F (fun y => iprop(True -∗ lfp F h y)) x)] (x : A) :
-    Absorbing (lfp F h x) := by
+example (h : IOrder.IMono PROP F) [∀ x, Absorbing (F (fun y => iprop(True -∗ μ y)) x)] (x : A) :
+    Absorbing (μ x) := by
   have hT (P : PROP) : iprop(True -∗ P) ⊢ P := by iintro H; iapply H; ipureintro; trivial
   have hA (P : PROP) [Absorbing P] : P ⊢ iprop(True -∗ P) := by iintro H -; iexact H
-  have hle := IOrder.fix_le_imap (PROP := PROP) (monotone_of_bimono h)
+  have hle := IOrder.fix_le_imap (PROP := PROP) (IOrder.monotone_of_imono h)
     (m := fun P => iprop(True -∗ P)) wand_mono_right (fun _ => hT _) (fun _ => hA _)
   exact ⟨sep_symm.trans (wand_elim (hle x))⟩
 
-example [∀ x, Affine (F (fun y => iprop(□ lfp F h y)) x)]
-    [∀ x, Persistent (F (fun y => iprop(□ lfp F h y)) x)] (x : A) : Persistent (lfp F h x) := by
-  have hle := IOrder.fix_le_imap (PROP := PROP) (monotone_of_bimono h) (m := fun P => iprop(□ P))
-    intuitionistically_mono (fun _ => intuitionistically_elim)
+example (h : IOrder.IMono PROP F) [∀ x, Affine (F (fun y => iprop(□ μ y)) x)]
+    [∀ x, Persistent (F (fun y => iprop(□ μ y)) x)] (x : A) : Persistent (μ x) := by
+  have hle := IOrder.fix_le_imap (PROP := PROP) (IOrder.monotone_of_imono h)
+    (m := fun P => iprop(□ P)) intuitionistically_mono (fun _ => intuitionistically_elim)
     (fun _ => intuitionistically_of_intuitionistic.2)
   exact ⟨(hle x).trans persistently_of_intuitionistically⟩
 
-example [∀ x, Absorbing (lfp F h x)] [∀ x, Persistent (F (fun y => iprop(<pers> lfp F h y)) x)]
-    (x : A) : Persistent (lfp F h x) := by
-  have hle := IOrder.fix_le_imap (PROP := PROP) (monotone_of_bimono h)
+example (h : IOrder.IMono PROP F) [∀ x, Absorbing (μ x)]
+    [∀ x, Persistent (F (fun y => iprop(<pers> μ y)) x)] (x : A) : Persistent (μ x) := by
+  have hle := IOrder.fix_le_imap (PROP := PROP) (IOrder.monotone_of_imono h)
     (m := fun P => iprop(<pers> P))
     persistently_mono (fun _ => persistently_elim) (fun _ => Persistent.persistent)
   exact ⟨hle x⟩
 end
 
-section
-open CoMonotoneFixpoint
-
-example [∀ x, Absorbing (F (fun y => iprop(<absorb> gfp F h y)) x)] (x : A) :
-    Absorbing (gfp F h x) := by
-  have hle := IOrder.fix_le_imap (PROP := PROP) (monotone_of_bimono h)
+open CoMonotoneFixpoint in
+example (h : IOrder.IMono PROP F) [∀ x, Absorbing (F (fun y => iprop(<absorb> ν y)) x)] (x : A) :
+    Absorbing (ν x) := by
+  have hle := IOrder.fix_le_imap (PROP := PROP) (IOrder.monotone_of_imono h)
     (m := fun P => iprop(<absorb> P))
     absorbingly_mono (fun _ => absorbingly_intro) (fun _ => Absorbing.absorbing)
   exact ⟨hle x⟩
-end
-end
 
 /-! ## The unary `ne` laws -/
 
-section
-variable {A : Type _} {F : (A → PROP) → A → PROP} (h : BIMono F)
-
 open MonotoneFixpoint in
-example [OFE A] (hF : ∀ Φ : A → PROP, NonExpansive Φ → NonExpansive (F Φ)) :
-    NonExpansive (lfp F h) := by
+example [OFE A] (h : IOrder.IMono PROP F)
+    (hF : ∀ Φ : A → PROP, NonExpansive Φ → NonExpansive (F Φ)) : NonExpansive μ := by
   -- `ne` at `A → PROP` is non-expansiveness.
-  have hne := IOrder.fix_ne (PROP := PROP) (monotone_of_bimono h) fun f hf n x y hxy =>
+  have hne := IOrder.fix_ne (PROP := PROP) (IOrder.monotone_of_imono h) fun f hf n x y hxy =>
     (hF f ⟨fun {n} x y => hf n x y⟩).ne hxy
   exact ⟨fun {n} x y => hne n x y⟩
 
 open CoMonotoneFixpoint in
-example [OFE A] (hF : ∀ Φ : A → PROP, NonExpansive Φ → NonExpansive (F Φ)) :
-    NonExpansive (gfp F h) := by
+example [OFE A] (h : IOrder.IMono PROP F)
+    (hF : ∀ Φ : A → PROP, NonExpansive Φ → NonExpansive (F Φ)) : NonExpansive ν := by
   -- `ne` at `A → PROP` is non-expansiveness.
-  have hne := IOrder.fix_ne (PROP := PROP) (monotone_of_bimono h) fun f hf n x y hxy =>
+  have hne := IOrder.fix_ne (PROP := PROP) (IOrder.monotone_of_imono h) fun f hf n x y hxy =>
     (hF f ⟨fun {n} x y => hf n x y⟩).ne hxy
   exact ⟨fun {n} x y => hne n x y⟩
 
 open MonotoneFixpoint in
-example {F₁ F₂ : (A → PROP) → A → PROP} (h₁ : BIMono F₁) (h₂ : BIMono F₂) {n : Nat}
-    (hF₂ : ∀ Φ Ψ : A → PROP, (∀ x, Φ x ≡{n}≡ Ψ x) → ∀ x, F₂ Φ x ≡{n}≡ F₂ Ψ x)
-    (hF : ∀ Φ x, F₁ Φ x ≡{n}≡ F₂ Φ x) (x : A) : lfp F₁ h₁ x ≡{n}≡ lfp F₂ h₂ x :=
-  IOrder.fix_dist PROP (monotone_of_bimono h₁) (monotone_of_bimono h₂) hF₂ hF x
+example {F₁ F₂ : (A → PROP) → A → PROP} (h₁ : IOrder.IMono PROP F₁) (h₂ : IOrder.IMono PROP F₂)
+    {n : Nat} (hF₂ : ∀ Φ Ψ : A → PROP, (∀ x, Φ x ≡{n}≡ Ψ x) → ∀ x, F₂ Φ x ≡{n}≡ F₂ Ψ x)
+    (hF : ∀ Φ x, F₁ Φ x ≡{n}≡ F₂ Φ x) (x : A) :
+    fix F₁ (IOrder.monotone_of_imono h₁) x ≡{n}≡ fix F₂ (IOrder.monotone_of_imono h₂) x :=
+  IOrder.fix_dist PROP _ _ hF₂ hF x
 
 open CoMonotoneFixpoint in
-example {F₁ F₂ : (A → PROP) → A → PROP} (h₁ : BIMono F₁) (h₂ : BIMono F₂) {n : Nat}
-    (hF₂ : ∀ Φ Ψ : A → PROP, (∀ x, Φ x ≡{n}≡ Ψ x) → ∀ x, F₂ Φ x ≡{n}≡ F₂ Ψ x)
-    (hF : ∀ Φ x, F₁ Φ x ≡{n}≡ F₂ Φ x) (x : A) : gfp F₁ h₁ x ≡{n}≡ gfp F₂ h₂ x :=
-  IOrder.fix_dist PROP (monotone_of_bimono h₁) (monotone_of_bimono h₂) hF₂ hF x
+example {F₁ F₂ : (A → PROP) → A → PROP} (h₁ : IOrder.IMono PROP F₁) (h₂ : IOrder.IMono PROP F₂)
+    {n : Nat} (hF₂ : ∀ Φ Ψ : A → PROP, (∀ x, Φ x ≡{n}≡ Ψ x) → ∀ x, F₂ Φ x ≡{n}≡ F₂ Ψ x)
+    (hF : ∀ Φ x, F₁ Φ x ≡{n}≡ F₂ Φ x) (x : A) :
+    fix F₁ (IOrder.monotone_of_imono h₁) x ≡{n}≡ fix F₂ (IOrder.monotone_of_imono h₂) x :=
+  IOrder.fix_dist PROP _ _ hF₂ hF x
 end
 
 -- Two arguments with OFEs: non-expansive in both.

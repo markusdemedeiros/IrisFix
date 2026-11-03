@@ -77,6 +77,11 @@ meta def cleanup (F pre fn : Expr) (e : Expr) : MetaM Expr := do
       -- On a function type, these bind its parameter: name the binder after the parameter.
       if let .forallE x .. ← whnfR (← inferType (e.getArg! (e.getAppNumArgs - 1))) then
         match e' with
+        -- `ne` at an argument with an OFE binds two values: `x` and `x'`.
+        | .forallE _ t (.forallE _ t' b bi') bi =>
+          if n == ``IOrder.ne then
+            return .visit (.forallE x t (.forallE (x.appendAfter "'") t' b bi') bi)
+          return .visit (.forallE x t e'.bindingBody! bi)
         | .app f (.lam _ t b bi) => return .visit (.app f (.lam x t b bi))
         | .forallE _ t b bi => return .visit (.forallE x t b bi)
         | .lam _ t b bi => return .visit (.lam x t b bi)
@@ -96,9 +101,18 @@ meta def emitLaws (declName : Name) (coind : Bool) : TermElabM Unit := do
   let info ← getConstInfoDefn declName
   let levels := info.levelParams
   let us := levels.map mkLevelParam
-  lambdaTelescope info.value fun fixed body => do
-    let_expr Lean.Order.fix X inst F h := body
+  lambdaTelescope info.value fun params body => do
+    -- If a fixed parameter follows a varying one, `partial_fixpoint` moves the fixed parameters
+    -- first, into an auxiliary `fun fixed => fix X inst F h`, applied to the varying ones.
+    let body ← match body.getAppFn with
+      | .const n us' =>
+        if n == ``Lean.Order.fix then pure body
+        else pure <| ((← getConstInfo n).instantiateValueLevelParams! us').beta body.getAppArgs
+      | _ => pure body
+    let_expr Lean.Order.fix X inst F h := body.getAppPrefix 4
       | throwError "ifix: `{declName}` is not a `partial_fixpoint`"
+    let varying := body.getAppArgs.extract 4
+    let fixed := params.filter (!varying.contains ·)
     -- `partial_fixpoint` marks the recursive calls.
     let F ← stripMData F
     -- `partial_fixpoint` abstracts the monotonicity proof into an auxiliary theorem.
@@ -110,7 +124,7 @@ meta def emitLaws (declName : Name) (coind : Bool) : TermElabM Unit := do
       | _ => h
     let_expr IOrder.monotone_of_imono PROP _ _ _ _ _ iord _ hF := h'
       | throwError "ifix: unexpected monotonicity proof{indentExpr h'}"
-    let fn := mkAppN (.const declName us) fixed
+    let fn ← mkLambdaFVars varying (mkAppN (.const declName us) params)
     -- `name.pre` and `name.pre_mono`.
     let preName := declName ++ `pre
     addDecl <| .defnDecl
@@ -122,13 +136,14 @@ meta def emitLaws (declName : Name) (coind : Bool) : TermElabM Unit := do
       let type ← cleanup F pre fn (← inferType value)
       emitThm (declName ++ suffix) levels (← mkForallFVars fixed type) (← mkLambdaFVars fixed value)
     emit `pre_mono hF
-    -- `name.unfold`, at every varying argument.
-    forallTelescope X fun xs _ => do
+    -- `name.unfold`, at every varying argument, in the order of the parameters.
+    forallTelescope (← instantiateForall X varying) fun ys _ => do
+      let xs := varying ++ ys
       let eq ← mkAppM ``Lean.Order.fix_eq #[h]
       let value ← xs.foldlM (fun eq x => mkCongrFun eq x) eq
-      let type ← mkEq (mkAppN fn xs) (mkAppN (mkApp pre fn) xs)
-      emitThm (declName ++ `unfold) levels (← mkForallFVars (fixed ++ xs) type)
-        (← mkLambdaFVars (fixed ++ xs) value)
+      let type ← mkEq (mkAppN fn xs).headBeta (mkAppN (mkApp pre fn) xs)
+      emitThm (declName ++ `unfold) levels (← mkForallFVars (params ++ ys) type)
+        (← mkLambdaFVars (params ++ ys) value)
     -- The generic laws, at `name.pre`.
     let law (lemma : Name) := mkAppOptM lemma #[PROP, none, none, X, inst, none, iord, pre, hF]
     emit (if coind then `coiter else `iter) (← law ``IOrder.fix_iter)

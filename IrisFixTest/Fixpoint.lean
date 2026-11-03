@@ -72,6 +72,26 @@ ifix swapNe [OFE α] (x y : α) : PROP := iprop(▷ swapNe y x)
 example [OFE α] {n : Nat} {x x' y y' : α} (hx : x ≡{n}≡ x') (hy : y ≡{n}≡ y') :
     swapNe (PROP := PROP) x y ≡{n}≡ swapNe x' y' :=
   swapNe.ne (fun _ hf n x x' hx y y' hy => later_ne.ne (hf n y y' hy x x' hx)) n x x' hx y y' hy
+
+-- A fixed parameter after a varying one.
+ifix mixed2 [OFE α] (b : Bool) (x : α) : PROP := iprop(▷ mixed2 (!b) x ∗ mixed2 b x)
+
+example [OFE α] (b : Bool) (x : α) : mixed2 (PROP := PROP) b x = mixed2.pre x (mixed2 · x) b :=
+  mixed2.unfold b x
+
+example [OFE α] (x : α) (Φ : Bool → PROP) :
+    ⊢ □ (∀ b, mixed2.pre x Φ b -∗ Φ b) -∗ ∀ b, mixed2 b x -∗ Φ b :=
+  mixed2.iter x Φ
+
+example [OFE α] [BIAffine PROP] (x : α) (b : Bool) : Affine (mixed2 (PROP := PROP) b x) :=
+  inferInstance
+
+-- A fixed parameter after varying ones with an OFE.
+ifix mixedNe [OFE α] (x y : α) (k : Nat) : PROP := iprop(▷ mixedNe y x k)
+
+example [OFE α] (k : Nat) {n : Nat} {x x' y y' : α} (hx : x ≡{n}≡ x') (hy : y ≡{n}≡ y') :
+    mixedNe (PROP := PROP) x y k ≡{n}≡ mixedNe x' y' k :=
+  mixedNe.ne k (fun _ hf n x x' hx y y' hy => later_ne.ne (hf n y y' hy x x' hx)) n x x' hx y y' hy
 end
 
 end IrisTest.Fixpoint

@@ -5,17 +5,21 @@ Authors: Markus de Medeiros
 -/
 module
 
-public import IrisFix.BI.Lib.Lattice
+public import IrisFix.BI.Lib.Monotone
+public import IrisFix.Std.Order
 import all Init.Internal.Order.Basic
 
 /-! # Pointwise Iris fixpoints
 
 `IOrder PROP X` internalizes the CCPO `X` into the BI `PROP`: `a ⊑ᵢ b` is its order, inside the
 BI, `meet` its binary meet, `map` applies an operator on `PROP` at every point, and sups respect
-`≡{n}≡` and `ne n` (`≡{n}≡`, at arguments `≡{n}≡` in the parameters that have OFEs). `PROP` is
-an instance for `-∗` and `∧` (`MonotoneFixpoint`), and for the reverse `-∗` and `∨`
-(`CoMonotoneFixpoint`), and functions are instances pointwise. A law for the least fixpoint, in the reverse order, is the law
-for the greatest fixpoint. -/
+`≡{n}≡` and `ne n` (`≡{n}≡`, at arguments `≡{n}≡` in the parameters that have OFEs).
+
+Entailment (`MonotoneFixpoint`) and reverse entailment (`CoMonotoneFixpoint`) make `PROP` a CCPO,
+so `partial_fixpoint` defines least and greatest fixpoints. `PROP` is an instance for `-∗` and `∧`
+(`MonotoneFixpoint`), and for the reverse `-∗` and `∨` (`CoMonotoneFixpoint`), and functions are
+instances pointwise. A law for the least fixpoint, in the reverse order, is the law for the
+greatest fixpoint. -/
 
 @[expose] public section
 
@@ -166,6 +170,25 @@ open IOrder
 namespace MonotoneFixpoint
 variable {PROP : Type _} [BI PROP]
 
+scoped instance instPartialOrderMonoProp : PartialOrder PROP where
+  rel Φ Ψ := Φ ⊢ Ψ
+  rel_refl := .rfl
+  rel_trans := .trans
+  rel_antisymm := (equiv_iff.mpr ⟨·, ·⟩)
+
+theorem sExists_is_sup (c : PROP → Prop) : is_sup c (sExists c) :=
+  fun _ => ⟨fun h _ hy => (sExists_intro hy).trans h, sExists_elim⟩
+
+scoped instance instCCPOMonoProp : CCPO PROP where
+  has_csup {c} _ := ⟨_, sExists_is_sup c⟩
+
+/-- Sups of chains related by `≡{n}≡` are `≡{n}≡`. -/
+theorem csup_dist {n : Nat} {c₁ c₂ : PROP → Prop} (hc₁ : chain c₁) (hc₂ : chain c₂)
+    (h : liftRel (· ≡{n}≡ ·) c₁ c₂) : CCPO.csup hc₁ ≡{n}≡ CCPO.csup hc₂ := by
+  rw [is_sup_unique (CCPO.csup_spec hc₁) (sExists_is_sup _),
+    is_sup_unique (CCPO.csup_spec hc₂) (sExists_is_sup _)]
+  exact sExists_ne h
+
 scoped instance instIOrderMonoProp : IOrder PROP PROP where
   le P Q := iprop(P -∗ Q)
   meet P Q := iprop(P ∧ Q)
@@ -188,14 +211,8 @@ scoped instance instIOrderMonoProp : IOrder PROP PROP where
     · icases H with ⟨H, -⟩; iapply H $$ HP
     · icases H with ⟨-, H⟩; iapply H $$ HP
   map_mono hm _ _ := hm
-  dist_csup hc₁ hc₂ h := by
-    rw [is_sup_unique (CCPO.csup_spec hc₁) (sExists_is_sup _),
-      is_sup_unique (CCPO.csup_spec hc₂) (sExists_is_sup _)]
-    exact sExists_ne h
-  ne_csup hc₁ hc₂ h := by
-    rw [is_sup_unique (CCPO.csup_spec hc₁) (sExists_is_sup _),
-      is_sup_unique (CCPO.csup_spec hc₂) (sExists_is_sup _)]
-    exact sExists_ne h
+  dist_csup := csup_dist
+  ne_csup := csup_dist
   toIPoints := inferInstance
   all_le h P := h P
   all_ge h P := h P
@@ -205,6 +222,25 @@ end MonotoneFixpoint
 
 namespace CoMonotoneFixpoint
 variable {PROP : Type _} [BI PROP]
+
+scoped instance instPartialOrderAntiProp : PartialOrder PROP where
+  rel Φ Ψ := Ψ ⊢ Φ
+  rel_refl := .rfl
+  rel_trans h1 h2 := h2.trans h1
+  rel_antisymm h1 h2 := equiv_iff.mpr ⟨h2, h1⟩
+
+theorem sForall_is_sup (c : PROP → Prop) : is_sup c (sForall c) :=
+  fun _ => ⟨fun h _ hy => h.trans (sForall_elim hy), sForall_intro⟩
+
+scoped instance instCCPOAntiProp : CCPO PROP where
+  has_csup {c} _ := ⟨_, sForall_is_sup c⟩
+
+/-- Sups of chains related by `≡{n}≡` are `≡{n}≡`. -/
+theorem csup_dist {n : Nat} {c₁ c₂ : PROP → Prop} (hc₁ : chain c₁) (hc₂ : chain c₂)
+    (h : liftRel (· ≡{n}≡ ·) c₁ c₂) : CCPO.csup hc₁ ≡{n}≡ CCPO.csup hc₂ := by
+  rw [is_sup_unique (CCPO.csup_spec hc₁) (sForall_is_sup _),
+    is_sup_unique (CCPO.csup_spec hc₂) (sForall_is_sup _)]
+  exact sForall_ne h
 
 scoped instance instIOrderAntiProp : IOrder PROP PROP where
   le P Q := iprop(Q -∗ P)
@@ -227,14 +263,8 @@ scoped instance instIOrderAntiProp : IOrder PROP PROP where
     · icases H with ⟨H, -⟩; iapply H $$ HP
     · icases H with ⟨-, H⟩; iapply H $$ HP
   map_mono hm _ _ := hm
-  dist_csup hc₁ hc₂ h := by
-    rw [is_sup_unique (CCPO.csup_spec hc₁) (sForall_is_sup _),
-      is_sup_unique (CCPO.csup_spec hc₂) (sForall_is_sup _)]
-    exact sForall_ne h
-  ne_csup hc₁ hc₂ h := by
-    rw [is_sup_unique (CCPO.csup_spec hc₁) (sForall_is_sup _),
-      is_sup_unique (CCPO.csup_spec hc₂) (sForall_is_sup _)]
-    exact sForall_ne h
+  dist_csup := csup_dist
+  ne_csup := csup_dist
   toIPoints := inferInstance
   all_le h P := h P
   all_ge h P := h P
