@@ -56,7 +56,7 @@ meta def stripMData (e : Expr) : CoreM Expr :=
     | .mdata _ e => .visit e
     | _ => .continue)
 
-/-- Unfold the pointwise operations and `IMono`, and fold the functional `F` into `pre` and
+/-- Unfold the pointwise operations, `IMono` and `all`, and fold the functional `F` into `pre` and
 `fix pre _` into `fn`. The quantifiers of the unfolded orders take the names of the parameters of
 the domain. -/
 meta def cleanup (F pre fn : Expr) (e : Expr) : MetaM Expr := do
@@ -64,14 +64,15 @@ meta def cleanup (F pre fn : Expr) (e : Expr) : MetaM Expr := do
   let e := e.replace fun e => if e == F then some pre else none
   let e ← Meta.transform e
     (pre := fun e => do
-      if e.isAppOf ``IOrder.IMono then
+      if e.isAppOf ``IOrder.IMono || e.isAppOf ``PointwiseLifting.all then
         if let some e ← unfoldDefinition? e then return .visit e.headBeta
       return .continue)
     (post := fun e => do
       if e.isAppOfArity ``Lean.Order.fix 4 && e.getArg! 2 == pre then return .done fn
       let some n := e.getAppFn.constName? | return .continue
-      unless n ∈ [``IOrder.le, ``IMeet.meet, ``IMap.map, ``INe.ne, ``IPoints.all,
-        ``Lean.Order.PartialOrder.rel] do return .continue
+      unless n ∈ [``IOrder.le, ``IMeet.meet, ``INe.ne,
+        ``Lean.Order.PartialOrder.rel, ``PointwiseLifting.rel, ``PointwiseLifting.map,
+        ``PointwiseLifting.zip, ``IPointwiseLifting.irel] do return .continue
       let some e' ← unfoldProjInst? e | return .continue
       let e' := e'.headBeta
       -- On a function type, these bind its parameter: name the binder after the parameter.

@@ -8,3 +8,4 @@ public import IrisFix.BI.Lib.FixpointBanach
 public import IrisFix.ProofMode.Lib
 public import IrisFix.ProofMode.Lib.Guarded
 public import IrisFix.Std.Order
+public import IrisFix.Std.PointwiseLifting

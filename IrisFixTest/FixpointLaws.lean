@@ -81,14 +81,16 @@ example (h : IOrder.IMono PROP F) [∀ x, Absorbing (F (fun y => iprop(True -∗
   have hT (P : PROP) : iprop(True -∗ P) ⊢ P := by iintro H; iapply H; ipureintro; trivial
   have hA (P : PROP) [Absorbing P] : P ⊢ iprop(True -∗ P) := by iintro H -; iexact H
   have hle := fix_le_map (IOrder.monotone_of_imono h)
-    (IMap.map_mono (PROP := PROP) (m := fun P => iprop(True -∗ P)) fun _ _ => wand_mono_right)
+    (PointwiseLifting.map_mono (B := PROP) (m := fun P => iprop(True -∗ P))
+      fun _ _ => wand_mono_right)
     (fun _ => hT _) (fun _ => hA _)
   exact ⟨sep_symm.trans (wand_elim (hle x))⟩
 
 example (h : IOrder.IMono PROP F) [∀ x, Affine (F (fun y => iprop(□ μ y)) x)]
     [∀ x, Persistent (F (fun y => iprop(□ μ y)) x)] (x : A) : Persistent (μ x) := by
   have hle := fix_le_map (IOrder.monotone_of_imono h)
-    (IMap.map_mono (PROP := PROP) (m := fun P => iprop(□ P)) fun _ _ => intuitionistically_mono)
+    (PointwiseLifting.map_mono (B := PROP) (m := fun P => iprop(□ P))
+      fun _ _ => intuitionistically_mono)
     (fun _ => intuitionistically_elim)
     (fun _ => intuitionistically_of_intuitionistic.2)
   exact ⟨(hle x).trans persistently_of_intuitionistically⟩
@@ -96,7 +98,7 @@ example (h : IOrder.IMono PROP F) [∀ x, Affine (F (fun y => iprop(□ μ y)) x
 example (h : IOrder.IMono PROP F) [∀ x, Absorbing (μ x)]
     [∀ x, Persistent (F (fun y => iprop(<pers> μ y)) x)] (x : A) : Persistent (μ x) := by
   have hle := fix_le_map (IOrder.monotone_of_imono h)
-    (IMap.map_mono (PROP := PROP) (m := fun P => iprop(<pers> P))
+    (PointwiseLifting.map_mono (B := PROP) (m := fun P => iprop(<pers> P))
     fun _ _ => persistently_mono) (fun _ => persistently_elim) (fun _ => Persistent.persistent)
   exact ⟨hle x⟩
 end
@@ -105,7 +107,7 @@ open CoMonotoneFixpoint in
 example (h : IOrder.IMono PROP F) [∀ x, Absorbing (F (fun y => iprop(<absorb> ν y)) x)] (x : A) :
     Absorbing (ν x) := by
   have hle := fix_le_map (IOrder.monotone_of_imono h)
-    (IMap.map_mono (PROP := PROP) (m := fun P => iprop(<absorb> P))
+    (PointwiseLifting.map_mono (B := PROP) (m := fun P => iprop(<absorb> P))
     fun _ _ => absorbingly_mono) (fun _ => absorbingly_intro) (fun _ => Absorbing.absorbing)
   exact ⟨hle x⟩
 
@@ -188,7 +190,8 @@ example [∀ n b, Absorbing (F (fun n b => iprop(True -∗ μ n b)) n b)] (n : N
   have hT (P : PROP) : iprop(True -∗ P) ⊢ P := by iintro H; iapply H; ipureintro; trivial
   have hA (P : PROP) [Absorbing P] : P ⊢ iprop(True -∗ P) := by iintro H -; iexact H
   have hle := fix_le_map (IOrder.monotone_of_imono hF)
-    (IMap.map_mono (PROP := PROP) (m := fun P => iprop(True -∗ P)) fun _ _ => wand_mono_right)
+    (PointwiseLifting.map_mono (B := PROP) (m := fun P => iprop(True -∗ P))
+      fun _ _ => wand_mono_right)
     (fun _ _ => hT _) (fun _ _ => hA _)
   exact ⟨sep_symm.trans (wand_elim (hle n b))⟩
 
@@ -196,7 +199,8 @@ example [∀ n b, Affine (F (fun n b => iprop(□ μ n b)) n b)]
     [∀ n b, Persistent (F (fun n b => iprop(□ μ n b)) n b)] (n : Nat) (b : Bool) :
     Persistent (μ n b) := by
   have hle := fix_le_map (IOrder.monotone_of_imono hF)
-    (IMap.map_mono (PROP := PROP) (m := fun P => iprop(□ P)) fun _ _ => intuitionistically_mono)
+    (PointwiseLifting.map_mono (B := PROP) (m := fun P => iprop(□ P))
+      fun _ _ => intuitionistically_mono)
     (fun _ _ => intuitionistically_elim)
     (fun _ _ => intuitionistically_of_intuitionistic.2)
   exact ⟨(hle n b).trans persistently_of_intuitionistically⟩
@@ -204,7 +208,8 @@ example [∀ n b, Affine (F (fun n b => iprop(□ μ n b)) n b)]
 example [∀ n b, Absorbing (μ n b)] [∀ n b, Persistent (F (fun n b => iprop(<pers> μ n b)) n b)]
     (n : Nat) (b : Bool) : Persistent (μ n b) := by
   have hle := fix_le_map (IOrder.monotone_of_imono hF)
-    (IMap.map_mono (PROP := PROP) (m := fun P => iprop(<pers> P)) fun _ _ => persistently_mono)
+    (PointwiseLifting.map_mono (B := PROP) (m := fun P => iprop(<pers> P))
+      fun _ _ => persistently_mono)
     (fun _ _ => persistently_elim)
     (fun _ _ => Persistent.persistent)
   exact ⟨hle n b⟩
@@ -244,7 +249,8 @@ example (Φ W : Nat → Bool → PROP) (hW : ∀ n b, W n b ⊢ iprop(Φ n b ∨
 example [∀ n b, Absorbing (F (fun n b => iprop(<absorb> ν n b)) n b)] (n : Nat) (b : Bool) :
     Absorbing (ν n b) := by
   have hle := fix_le_map (IOrder.monotone_of_imono hF)
-    (IMap.map_mono (PROP := PROP) (m := fun P => iprop(<absorb> P)) fun _ _ => absorbingly_mono)
+    (PointwiseLifting.map_mono (B := PROP) (m := fun P => iprop(<absorb> P))
+      fun _ _ => absorbingly_mono)
     (fun _ _ => absorbingly_intro)
     (fun _ _ => Absorbing.absorbing)
   exact ⟨hle n b⟩

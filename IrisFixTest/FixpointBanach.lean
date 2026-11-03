@@ -22,24 +22,24 @@ variable {A : Type _} (F : (A → PROP) → A → PROP) [Contractive F]
 
 example : (∀ Φ, (∀ x, Persistent (Φ x)) → (∀ x, Persistent (F Φ x))) →
     ∀ x, Persistent (fixpoint F x) :=
-  IPoints.fixpoint_persistent (PROP := PROP) F (fixpoint_unfold F.toContractiveHom)
+  Banach.fixpoint_persistent (PROP := PROP) F (fixpoint_unfold F.toContractiveHom)
 
 example : (∀ Φ, (∀ x, Absorbing (Φ x)) → (∀ x, Absorbing (F Φ x))) →
     ∀ x, Absorbing (fixpoint F x) :=
-  IPoints.fixpoint_absorbing (PROP := PROP) F (fixpoint_unfold F.toContractiveHom)
+  Banach.fixpoint_absorbing (PROP := PROP) F (fixpoint_unfold F.toContractiveHom)
 
 example : (∀ Φ, (∀ x, Affine (Φ x)) → (∀ x, Affine (F Φ x))) → ∀ x, Affine (fixpoint F x) :=
-  IPoints.fixpoint_affine (PROP := PROP) F (fixpoint_unfold F.toContractiveHom)
+  Banach.fixpoint_affine (PROP := PROP) F (fixpoint_unfold F.toContractiveHom)
 
 example : (∀ Φ, (∀ x, Persistent (Φ x)) → (∀ x, Absorbing (Φ x)) →
       (∀ x, Persistent (F Φ x) ∧ Absorbing (F Φ x))) →
     ∀ x, Persistent (fixpoint F x) ∧ Absorbing (fixpoint F x) :=
-  IPoints.fixpoint_persistent_absorbing (PROP := PROP) F (fixpoint_unfold F.toContractiveHom)
+  Banach.fixpoint_persistent_absorbing (PROP := PROP) F (fixpoint_unfold F.toContractiveHom)
 
 example : (∀ Φ, (∀ x, Persistent (Φ x)) → (∀ x, Affine (Φ x)) →
       (∀ x, Persistent (F Φ x) ∧ Affine (F Φ x))) →
     ∀ x, Persistent (fixpoint F x) ∧ Affine (fixpoint F x) :=
-  IPoints.fixpoint_persistent_affine (PROP := PROP) F (fixpoint_unfold F.toContractiveHom)
+  Banach.fixpoint_persistent_affine (PROP := PROP) F (fixpoint_unfold F.toContractiveHom)
 end
 
 /-! ## Two arguments -/
@@ -49,12 +49,12 @@ variable (F : (Nat → Bool → PROP) → Nat → Bool → PROP) [Contractive F]
 
 example : (∀ Φ, (∀ n b, Persistent (Φ n b)) → ∀ n b, Persistent (F Φ n b)) →
     ∀ n b, Persistent (fixpoint F n b) :=
-  IPoints.fixpoint_persistent (PROP := PROP) F (fixpoint_unfold F.toContractiveHom)
+  Banach.fixpoint_persistent (PROP := PROP) F (fixpoint_unfold F.toContractiveHom)
 
 example : (∀ Φ, (∀ n b, Persistent (Φ n b)) → (∀ n b, Absorbing (Φ n b)) →
       ∀ n b, Persistent (F Φ n b) ∧ Absorbing (F Φ n b)) →
     ∀ n b, Persistent (fixpoint F n b) ∧ Absorbing (fixpoint F n b) :=
-  IPoints.fixpoint_persistent_absorbing (PROP := PROP) F (fixpoint_unfold F.toContractiveHom)
+  Banach.fixpoint_persistent_absorbing (PROP := PROP) F (fixpoint_unfold F.toContractiveHom)
 end
 
 -- A guarded body: `Persistent` at every point, at two arguments.
@@ -66,7 +66,7 @@ instance [BILaterContractive PROP] : Contractive (body (PROP := PROP)) where
 
 example [BILaterContractive PROP] (n : Nat) (b : Bool) :
     Persistent (fixpoint (body (PROP := PROP)) n b) := by
-  have h := IPoints.fixpoint_persistent (PROP := PROP) (body (PROP := PROP))
+  have h := Banach.fixpoint_persistent (PROP := PROP) (body (PROP := PROP))
     (fixpoint_unfold (body (PROP := PROP)).toContractiveHom) fun Φ _ => by
     intro n b
     unfold body
