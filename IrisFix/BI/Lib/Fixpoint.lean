@@ -167,7 +167,7 @@ scoped instance instINeMonoProp : INe PROP where
 scoped instance instApproximationMonoProp : Approximation PROP PROP :=
   .downsets sExists sExists_is_sup
 
-scoped instance : Downsets PROP := ⟨fun _ _ => .rfl, sExists_is_sup⟩
+scoped instance : Downsets PROP := ⟨fun _ _ => .rfl, sExists_is_sup, fun _ => rfl⟩
 
 end MonotoneFixpoint
 
@@ -216,7 +216,7 @@ scoped instance instINeAntiProp : INe PROP where
 scoped instance instApproximationAntiProp : Approximation PROP PROP :=
   .downsets sForall sForall_is_sup
 
-scoped instance : Downsets PROP := ⟨fun _ _ => .rfl, sForall_is_sup⟩
+scoped instance : Downsets PROP := ⟨fun _ _ => .rfl, sForall_is_sup, fun _ => rfl⟩
 
 end CoMonotoneFixpoint
 

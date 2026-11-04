@@ -194,14 +194,12 @@ class PointwiseLifting₂ (B B' : Type _) (Pred Pred' : Type _) [PointwiseLiftin
   rel₂_mono {R R' : B → B' → Prop} (h : ∀ b x, R b x → R' b x) {S : Pred} {g : Pred'} :
     rel₂ R S g → rel₂ R' S g
   rel₂_map₂ {R : B → B' → Prop} {f : B → B'} (h : ∀ b, R b (f b)) (S : Pred) : rel₂ R S (map₂ f S)
-  rel₂_comp_l {R : B → B → Prop} {Q : B → B' → Prop} {S S' : Pred} {g : Pred'} :
-    rel R S S' → rel₂ Q S' g → rel₂ (fun b x => ∃ b', R b b' ∧ Q b' x) S g
+  rel₂_comp {R : B → B → Prop} {Q : B → B' → Prop} {S S' : Pred} {g : Pred'} :
+    rel R S S' → rel₂ Q S g → rel₂ (fun b' x => ∃ b, R b b' ∧ Q b x) S' g
   rel₂_rel {R R' : B → B' → Prop} {S : Pred} {g g' : Pred'} :
     rel₂ R S g → rel₂ R' S g' → rel (fun x y => ∃ b, R b x ∧ R' b y) g g'
   rel₂_all {P : B → Prop} {R : B → B' → Prop} {S : Pred} {g : Pred'} :
     all P S → rel₂ R S g → rel₂ (fun b x => P b ∧ R b x) S g
-  rel₂_hull₂ {R : B → B' → Prop} {h : (B' → Prop) → B} (hh : ∀ T x, T x → R (h T) x)
-    {C : Pred' → Prop} {g : Pred'} : C g → rel₂ R (hull₂ h C) g
   hull₂_sub {R : B → B → Prop} {h : (B' → Prop) → B}
     (hh : ∀ T T', (∀ x, T x → T' x) → (∃ x, T x) → R (h T) (h T')) {C C' : Pred' → Prop} :
     (∀ g, C g → C' g) → (∃ g, C g) → rel R (hull₂ h C) (hull₂ h C')
@@ -221,10 +219,9 @@ instance instBase {B B' : Type _} : PointwiseLifting₂ B B' B B' where
   hull₂ h := h
   rel₂_mono h _ _ := h _ _
   rel₂_map₂ h _ := h _
-  rel₂_comp_l hR hQ := ⟨_, hR, hQ⟩
+  rel₂_comp hR hQ := ⟨_, hR, hQ⟩
   rel₂_rel hR hR' := ⟨_, hR, hR'⟩
   rel₂_all hP hR := ⟨hP, hR⟩
-  rel₂_hull₂ hh _ _ hC := hh _ _ hC
   hull₂_sub hh _ _ hCC' hne := hh _ _ hCC' hne
   hull₂_eq hh _ _ hC hle := hh _ _ hC hle
   all_hull₂ hh _ hQ hne := hh _ hQ hne
@@ -238,32 +235,15 @@ instance instPi {B B' : Type _} {ι : Type _} {β β' : ι → Type _}
   hull₂ h C i := hull₂ h fun G => ∃ g, C g ∧ g i = G
   rel₂_mono h _ _ hS i := rel₂_mono h (hS i)
   rel₂_map₂ h S i := rel₂_map₂ h (S i)
-  rel₂_comp_l hR hQ i := rel₂_comp_l (hR i) (hQ i)
+  rel₂_comp hR hQ i := rel₂_comp (hR i) (hQ i)
   rel₂_rel hR hR' i := rel₂_rel (hR i) (hR' i)
   rel₂_all hP hR i := rel₂_all (hP i) (hR i)
-  rel₂_hull₂ hh _ g hC _ := rel₂_hull₂ hh ⟨g, hC, rfl⟩
   hull₂_sub hh _ _ hCC' := fun ⟨g, hg⟩ i =>
     hull₂_sub hh (fun _ ⟨g', hg', e⟩ => ⟨g', hCC' g' hg', e⟩) ⟨g i, g, hg, rfl⟩
   hull₂_eq hh _ g hC hle := funext fun i => hull₂_eq hh ⟨g, hC, rfl⟩
     fun _ ⟨g', hg', e⟩ => e ▸ hle g' hg' i
   all_hull₂ hh _ hQ := fun ⟨g, hg⟩ i => all_hull₂ hh
     (fun _ _ ⟨g₁, h₁, e₁⟩ ⟨g₂, h₂, e₂⟩ => e₁ ▸ e₂ ▸ hQ g₁ g₂ h₁ h₂ i) ⟨g i, g, hg, rfl⟩
-
-variable {B B' Pred Pred' : Type _} [PointwiseLifting B Pred] [PointwiseLifting B' Pred']
-  [PointwiseLifting₂ B B' Pred Pred']
-
-/-- `rel₂_comp_l`, on the other side of `R`. -/
-theorem rel₂_comp_r {R : B → B → Prop} {Q : B → B' → Prop} {S S' : Pred} {g : Pred'}
-    (hR : rel R S S') (hQ : rel₂ Q S g) : rel₂ (fun b' x => ∃ b, R b b' ∧ Q b x) S' g :=
-  rel₂_comp_l (PointwiseLifting.rel_flip hR) hQ
-
-/-- `hull₂_sub`, for an `h` antitone in the set. -/
-theorem hull₂_sup {R : B → B → Prop} {h : (B' → Prop) → B}
-    (hh : ∀ T T', (∀ x, T' x → T x) → (∃ x, T' x) → R (h T) (h T')) {C C' : Pred' → Prop}
-    (hCC' : ∀ g, C' g → C g) (hne : ∃ g, C' g) :
-    rel R (hull₂ (Pred := Pred) h C) (hull₂ (Pred := Pred) h C') :=
-  PointwiseLifting.rel_flip <| hull₂_sub (R := fun a b => R b a)
-    (fun T T' hTT' hne => hh T' T hTT' hne) hCC' hne
 
 end PointwiseLifting₂
 

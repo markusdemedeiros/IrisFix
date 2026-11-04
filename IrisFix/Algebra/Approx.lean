@@ -187,32 +187,37 @@ noncomputable instance : Approximation (Approx α) α where
   get := get
   mem_hull := mem_hull
   mem_get := get_mem
+  hull_mono h hne := hull_mono h hne
 
 /-- `bind₂`, `mem` and `get` on balls of `α`. -/
 local notation "bindB" => bind₂ (D := Approx α) (X := α)
 local notation "memB" => Approximation.mem (D := Approx α) (X := α)
 local notation "getB" => Approximation.get (D := Approx α) (X := α)
 
-variable {PD PX : Type _} [PointwiseLifting (Approx α) PD] [PointwiseLifting α PX]
-  [PointwiseLifting₂ (Approx α) α PD PX] [PartialOrder PD] [PointwiseLiftingLe (Approx α) PD]
+/-- Balls are ordered by information: a more precise ball approximates less. -/
+theorem le_iff_ext (S S' : Approx α) : S ⊑ S' ↔ Approximation.ext α S' S := .rfl
 
-/-- Every body gives a monotone `bind₂ · k`: a more precise `S` approximates fewer functions. -/
-theorem bind₂_mono_approx {k : PX → PX} :
-    monotone fun S : PD => bindB S k := fun _ S' hS =>
-  (PointwiseLiftingLe.le_iff (B := Approx α)).2 <| hull₂_sup (R := (· ⊑ ·))
-    (fun _ _ hT' hne => hull_mono hT' hne)
-    (fun _ ⟨g, hg, e⟩ => ⟨g, rel₂_mono (fun _ _ ⟨_, h, hx⟩ => h _ hx)
-      (rel₂_comp_l ((PointwiseLiftingLe.le_iff (B := Approx α)).1 hS) hg), e⟩)
-    (bind₂_nonempty (D := Approx α) (X := α) S' k)
+/-- The hull of a single point reads back as that point. -/
+theorem get_hull {T : α → Prop} {x : α} (hx : T x) (hT : ∀ y, T y → y = x) :
+    get (hull T) = x := by
+  refine (OFE.eq_dist'.2 fun n => ?_).symm
+  exact get_mem (hull T) n (fun a b ha hb => (hT a ha).trans (hT b hb).symm ▸ .rfl) x hx
+
+variable {PD PX : Type _} [PointwiseLifting (Approx α) PD] [PointwiseLifting α PX]
+  [PointwiseLifting₂ (Approx α) α PD PX]
+
+/-- Every body gives a monotone `bind₂ · k`. -/
+theorem bind₂_mono_approx [PartialOrder PD] [PointwiseLiftingLe (Approx α) PD] {k : PX → PX} :
+    monotone fun S : PD => bindB S k :=
+  bind₂_mono_info le_iff_ext
 
 /-! ### Reading the fixpoint back -/
 
 section ReadBack
-omit [PartialOrder PD] [PointwiseLiftingLe (Approx α) PD]
 variable [OFE PX] [PointwiseLiftingDist α PX]
 
-/-- For a contractive body, the fixpoint of `bind₂ · k` is made of points, and their values are a
-fixpoint of `k`. -/
+/-- For a contractive body, the fixpoint of `bind₂ · k` is a single function, so `k` sends it to a
+single value, and its value is a fixpoint of `k`. -/
 theorem bind₂_get_approx (k : PX → PX) [Contractive k] {S : PD}
     (hS : S = bindB S k) : map₂ getB S = k (map₂ getB S) := by
   have dist {n} {a b : PX} : a ≡{n}≡ b ↔ rel (fun x y : α => x ≡{n}≡ y) a b :=
@@ -229,14 +234,12 @@ theorem bind₂_get_approx (k : PX → PX) [Contractive k] {S : PD}
       refine dist.1 (Contractive.distLater_dist fun m hm => dist.2 ?_)
       refine PointwiseLifting.rel_mono (fun x y ⟨d, ⟨hp, hx⟩, hy⟩ => hp x y hx hy)
         (rel₂_rel (rel₂_all (ih m hm) hg) hg')
-  -- `S` approximates `get ∘ S` and `k (get ∘ S)`, and its points are points.
+  -- So `S` approximates only `get ∘ S`.
+  refine get_fix (R := (· = ·)) (fun T x hx hT => get_hull hx hT) hS fun g hg => ?_
   have hget : rel₂ memB S (map₂ getB S : PX) := rel₂_map₂ (mem_get (D := Approx α) (X := α)) S
-  have hk : rel₂ memB S (k (map₂ getB S)) := by
-    have h : rel₂ memB (bindB S k) (k (map₂ getB S)) :=
-      rel₂_hull₂ (fun _ _ => mem_hull) ⟨_, hget, rfl⟩
-    rwa [← hS] at h
-  refine OFE.eq_dist'.mpr fun n => dist.2 <| PointwiseLifting.rel_mono
-    (fun x y ⟨d, ⟨hp, hx⟩, hy⟩ => hp x y hx hy) (rel₂_rel (rel₂_all (hprec n) hget) hk)
+  rw [OFE.eq_dist'.2 fun n => dist.2 <| PointwiseLifting.rel_mono
+    (fun x y ⟨d, ⟨hp, hx⟩, hy⟩ => hp x y hx hy) (rel₂_rel (rel₂_all (hprec n) hg) hget)]
+  exact PointwiseLifting.rel_eq _
 
 /-- The fixpoint of `bind₂ · k`, for a contractive `k`, read back: its points are a fixpoint of
 `k`. -/
