@@ -6,12 +6,15 @@ Authors: Markus de Medeiros
 module
 
 public import Iris.Algebra.OFE
+public import IrisFix.Std.Approximation
 
 /-! # Approximations
 
 The domain behind guarded fixpoints: balls of an OFE, ordered by reverse inclusion, form a `CCPO`.
-`lift G` is monotone for every `G`, and for contractive `G` its fixpoint is exact (`lift_fix_get`).
-A variant of the formal balls of Edalat and Heckmann (TCS 193, 1998). -/
+Balls approximate the points they contain, and the best approximation of a set is its hull: an
+`Approximation`. So `bind₂ · G` is monotone for every `G`, and for contractive `G` its fixpoint is
+made of points, which are the Banach fixpoint of `G` (`bind₂_get_approx`, `eq_fixpoint`). A variant
+of the formal balls of Edalat and Heckmann (TCS 193, 1998). -/
 
 @[expose] public section
 
@@ -19,7 +22,8 @@ namespace Iris
 open OFE Lean.Order
 
 namespace Approx
-variable {α : Type _} [OFE α] -- TODO: This file must be generalized based on the step index changes.
+-- TODO: This file must be generalized based on the step index changes.
+variable {α : Type _} [OFE α]
 
 /-- The ball around `c` determined by the set of levels `P`. -/
 def ball (c : α) (P : Nat → Prop) : α → Prop := fun y => ∀ m, P m → c ≡{m}≡ y
@@ -136,9 +140,9 @@ instance : CCPO (Approx α) where
 
 end CCPO
 
-/-! ## Lifting a function to approximations -/
+/-! ## Hulls -/
 
-section Lift
+section Hull
 variable [Inhabited α]
 
 /-- The smallest ball containing `T`, or everything when `T` is empty. -/
@@ -166,33 +170,89 @@ theorem hull_mono {T T' : α → Prop} (h : ∀ a, T' a → T a) (hne : ∃ a, T
   fun _ hz m hm a ha =>
     (hm a b ha (h b hb)).trans (hz m (fun x y hx hy => hm x y (h x hx) (h y hy)) b hb)
 
-/-- Run `G` on every point of `S`. -/
-def lift (G : α → α) (S : Approx α) : Approx α := hull fun y => ∃ x, S.1 x ∧ y = G x
+end Hull
 
-theorem lift_mono (G : α → α) : monotone (lift G) :=
-  fun _ S' h => hull_mono (fun _ ⟨x, hx, e⟩ => ⟨x, h x hx, e⟩) ⟨_, _, get_mem S', rfl⟩
+/-! ## Approximations of points
 
-/-- For a contractive `G`, a fixpoint of `lift G` is a point, and a fixpoint of `G`. -/
-theorem lift_fix_get (G : α → α) [Contractive G] {S : Approx α} (hS : lift G S = S) :
-    get S = G (get S) := by
-  -- Each application of `G` gains a level of precision.
-  have hprec n : prec S.1 n := by
+Balls approximate the points they contain; the best approximation of a set is its hull. -/
+
+section Balls
+variable [Inhabited α]
+open PointwiseLifting (rel all)
+open Approximation PointwiseLifting₂
+
+noncomputable instance : Approximation (Approx α) α where
+  mem S x := S.1 x
+  hull := hull
+  get := get
+  mem_hull := mem_hull
+  mem_get := get_mem
+
+/-- `bind₂`, `mem` and `get` on balls of `α`. -/
+local notation "bindB" => bind₂ (D := Approx α) (X := α)
+local notation "memB" => Approximation.mem (D := Approx α) (X := α)
+local notation "getB" => Approximation.get (D := Approx α) (X := α)
+
+variable {PD PX : Type _} [PointwiseLifting (Approx α) PD] [PointwiseLifting α PX]
+  [PointwiseLifting₂ (Approx α) α PD PX] [PartialOrder PD] [PointwiseLiftingLe (Approx α) PD]
+
+/-- Every body gives a monotone `bind₂ · k`: a more precise `S` approximates fewer functions. -/
+theorem bind₂_mono_approx {k : PX → PX} :
+    monotone fun S : PD => bindB S k := fun _ S' hS =>
+  (PointwiseLiftingLe.le_iff (B := Approx α)).2 <| hull₂_sup (R := (· ⊑ ·))
+    (fun _ _ hT' hne => hull_mono hT' hne)
+    (fun _ ⟨g, hg, e⟩ => ⟨g, rel₂_mono (fun _ _ ⟨_, h, hx⟩ => h _ hx)
+      (rel₂_comp_l ((PointwiseLiftingLe.le_iff (B := Approx α)).1 hS) hg), e⟩)
+    (bind₂_nonempty (D := Approx α) (X := α) S' k)
+
+/-! ### Reading the fixpoint back -/
+
+section ReadBack
+omit [PartialOrder PD] [PointwiseLiftingLe (Approx α) PD]
+variable [OFE PX] [PointwiseLiftingDist α PX]
+
+/-- For a contractive body, the fixpoint of `bind₂ · k` is made of points, and their values are a
+fixpoint of `k`. -/
+theorem bind₂_get_approx (k : PX → PX) [Contractive k] {S : PD}
+    (hS : S = bindB S k) : map₂ getB S = k (map₂ getB S) := by
+  have dist {n} {a b : PX} : a ≡{n}≡ b ↔ rel (fun x y : α => x ≡{n}≡ y) a b :=
+    PointwiseLiftingDist.dist_iff
+  -- Every point of `S` is precise at every level, by strong induction.
+  have hprec n : all (fun d : Approx α => prec d.1 n) S := by
     induction n using Nat.strongRecOn with
     | ind n ih =>
-      rw [← hS]
-      refine prec_hull ?_ ⟨_, _, get_mem S, rfl⟩
-      rintro _ _ ⟨x, hx, rfl⟩ ⟨y, hy, rfl⟩
-      exact Contractive.distLater_dist fun m hm => ih m hm x y hx hy
-  have hG : (lift G S).1 (G (get S)) := mem_hull ⟨_, get_mem S, rfl⟩
-  rw [hS] at hG
-  exact OFE.eq_dist'.mpr fun n => hprec n _ _ (get_mem S) hG
+      rw [hS]
+      refine all_hull₂ (Q := fun x y => x ≡{n}≡ y)
+        (fun T hT ⟨x, hx⟩ => prec_hull (fun _ _ ha hb => hT _ _ ha hb) ⟨x, hx⟩) ?_
+        (bind₂_nonempty (D := Approx α) (X := α) S k)
+      rintro _ _ ⟨g, hg, rfl⟩ ⟨g', hg', rfl⟩
+      refine dist.1 (Contractive.distLater_dist fun m hm => dist.2 ?_)
+      refine PointwiseLifting.rel_mono (fun x y ⟨d, ⟨hp, hx⟩, hy⟩ => hp x y hx hy)
+        (rel₂_rel (rel₂_all (ih m hm) hg) hg')
+  -- `S` approximates `get ∘ S` and `k (get ∘ S)`, and its points are points.
+  have hget : rel₂ memB S (map₂ getB S : PX) := rel₂_map₂ (mem_get (D := Approx α) (X := α)) S
+  have hk : rel₂ memB S (k (map₂ getB S)) := by
+    have h : rel₂ memB (bindB S k) (k (map₂ getB S)) :=
+      rel₂_hull₂ (fun _ _ => mem_hull) ⟨_, hget, rfl⟩
+    rwa [← hS] at h
+  refine OFE.eq_dist'.mpr fun n => dist.2 <| PointwiseLifting.rel_mono
+    (fun x y ⟨d, ⟨hp, hx⟩, hy⟩ => hp x y hx hy) (rel₂_rel (rel₂_all (hprec n) hget) hk)
 
-end Lift
+/-- The fixpoint of `bind₂ · k`, for a contractive `k`, read back: its points are a fixpoint of
+`k`. -/
+theorem IsFix.get_approx [CCPO PD] {k : PX → PX}
+    (hk : Contractive k) {S : PD} (h : IsFix (fun S => bindB S k) S) :
+    map₂ getB S = k (map₂ getB S) :=
+  bind₂_get_approx k h.unfold
 
-/-- A fixpoint of `lift G` is the Banach fixpoint of `G`, whatever the default point. -/
-theorem get_eq_fixpoint [IsCOFE α] {i j : Inhabited α} (G : α → α) [Contractive G] {S : Approx α}
-    (hS : @lift α _ i G S = S) : get S = @fixpoint α _ j G _ :=
-  @fixpoint_unique α _ j G.toContractiveHom _ (@lift_fix_get α _ i G _ S hS)
+end ReadBack
+
+end Balls
+
+/-- A fixpoint of a contractive `G` is its Banach fixpoint, whatever the default point. -/
+theorem eq_fixpoint [IsCOFE α] [Inhabited α] (G : α → α) [Contractive G] {x : α}
+    (h : x = G x) : x = fixpoint G :=
+  fixpoint_unique (f := G.toContractiveHom) h
 
 end Approx
 

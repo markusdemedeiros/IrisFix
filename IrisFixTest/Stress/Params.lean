@@ -40,74 +40,86 @@ example (Φ W : PROP) (hW : W ⊢ iprop(Φ ∨ zc0.pre W)) : ⊢ □ (Φ -∗ zc
   zc0.paco Φ W hW
 example : Absorbing (zc0 (PROP := PROP)) := inferInstance
 
-/-! ## Zero varying parameters -/
+/-! ## One parameter, passed on unchanged -/
 
 ifix f1 (P : PROP) : PROP := iprop% P ∗ ▷ f1 P
 
-example (P : PROP) : f1 P = f1.pre P (f1 P) := f1.unfold P
-example (P Φ : PROP) : ⊢ □ (f1.pre P Φ -∗ Φ) -∗ f1 P -∗ Φ := f1.iter P Φ
+example (P : PROP) : f1 P = f1.pre f1 P := f1.unfold P
+example (Φ : PROP → PROP) : ⊢ □ (∀ P, f1.pre Φ P -∗ Φ P) -∗ ∀ P, f1 P -∗ Φ P := f1.iter Φ
 example [BIAffine PROP] (P : PROP) : Affine (f1 P) := inferInstance
 
-/-! ## Fixed and varying, in every order -/
+/-! ## Parameters passed on unchanged and changed, in every order -/
 
--- Fixed last.
+-- Unchanged last.
 ifix fl (n : Nat) (P : PROP) : PROP := iprop% P ∨ ▷ fl (n + 1) P
 
-example (n : Nat) (P : PROP) : fl n P = fl.pre P (fun n => fl n P) n := fl.unfold n P
-example (P : PROP) (Φ : Nat → PROP) :
-    ⊢ □ (∀ n, iprop(P ∨ ▷ Φ (n + 1)) -∗ Φ n) -∗ ∀ n, fl n P -∗ Φ n :=
-  fl.iter P Φ
-example (P : PROP) (Φ : Nat → PROP) :
-    ⊢ □ (∀ n, fl.pre P (fun n => iprop(Φ n ∧ fl n P)) n -∗ Φ n) -∗ ∀ n, fl n P -∗ Φ n :=
-  fl.ind P Φ
-example (P : PROP) [Persistent P] [Absorbing P] (n : Nat) : Persistent (fl n P) := inferInstance
+example (n : Nat) (P : PROP) : fl n P = fl.pre fl n P := fl.unfold n P
+example (Φ : Nat → PROP → PROP) :
+    ⊢ □ (∀ n P, iprop(P ∨ ▷ Φ (n + 1) P) -∗ Φ n P) -∗ ∀ n P, fl n P -∗ Φ n P :=
+  fl.iter Φ
+example (Φ : Nat → PROP → PROP) :
+    ⊢ □ (∀ n P, fl.pre (fun n P => iprop(Φ n P ∧ fl n P)) n P -∗ Φ n P) -∗
+      ∀ n P, fl n P -∗ Φ n P :=
+  fl.ind Φ
+-- An instance that needs an instance of a fixed (section variable) parameter.
+section
+variable (P : PROP) [Persistent P] [Absorbing P]
+ifix flP (n : Nat) : PROP := iprop% P ∨ ▷ flP (n + 1)
+example (n : Nat) : Persistent (flP P n) := inferInstance
+end
 example [BIAffine PROP] (P : PROP) (n : Nat) : Affine (fl n P) := inferInstance
 
 icofix cfl (n : Nat) (P : PROP) : PROP := iprop% P ∗ ▷ cfl (n + 1) P
 
-example (n : Nat) (P : PROP) : cfl n P = cfl.pre P (fun n => cfl n P) n := cfl.unfold n P
-example (P : PROP) (Φ : Nat → PROP) :
-    ⊢ □ (∀ n, Φ n -∗ cfl.pre P Φ n) -∗ ∀ n, Φ n -∗ cfl n P := cfl.coiter P Φ
+example (n : Nat) (P : PROP) : cfl n P = cfl.pre cfl n P := cfl.unfold n P
+example (Φ : Nat → PROP → PROP) :
+    ⊢ □ (∀ n P, Φ n P -∗ cfl.pre Φ n P) -∗ ∀ n P, Φ n P -∗ cfl n P := cfl.coiter Φ
 
--- Interleaved: F V F V F V.
+-- Interleaved: unchanged and changed, alternating.
 ifix il (a : Nat) (x : Nat) (b : Bool) (y : Bool) (P : PROP) (z : Nat) : PROP :=
   iprop(P ∨ ▷ il a (x + 1) b (!y) P (z + a))
 
 example (a x : Nat) (b y : Bool) (P : PROP) (z : Nat) :
-    il a x b y P z = il.pre a b P (fun x y => il a x b y P) x y z :=
+    il a x b y P z = il.pre il a x b y P z :=
   il.unfold a x b y P z
-example (a : Nat) (b : Bool) (P : PROP) (Φ : Nat → Bool → Nat → PROP) :
-    ⊢ □ (∀ x y z, il.pre a b P Φ x y z -∗ Φ x y z) -∗ ∀ x y z, il a x b y P z -∗ Φ x y z :=
-  il.iter a b P Φ
-example (a : Nat) (b : Bool) (P : PROP) (Φ W : Nat → Bool → Nat → PROP)
-    (hW : ∀ x y z, iprop(Φ x y z ∧ il.pre a b P W x y z) ⊢ W x y z) :
-    ⊢ □ (∀ x y z, il.pre a b P W x y z -∗ Φ x y z) -∗ ∀ x y z, il a x b y P z -∗ Φ x y z :=
-  il.ind_wf a b P Φ W hW
-example (a : Nat) (b : Bool) (P : PROP) (G : (Nat → Bool → Nat → PROP) → Nat → Bool → Nat → PROP)
-    (g : Nat → Bool → Nat → PROP) (hg : ∀ x y z, G g x y z ⊢ g x y z) :
-    ⊢ □ (∀ Φ x y z, il.pre a b P Φ x y z -∗ G Φ x y z) -∗ ∀ x y z, il a x b y P z -∗ g x y z :=
-  il.strong_mono a b P G g hg
+example (Φ : Nat → Nat → Bool → Bool → PROP → Nat → PROP) :
+    ⊢ □ (∀ a x b y P z, il.pre Φ a x b y P z -∗ Φ a x b y P z) -∗
+      ∀ a x b y P z, il a x b y P z -∗ Φ a x b y P z :=
+  il.iter Φ
+example (Φ W : Nat → Nat → Bool → Bool → PROP → Nat → PROP)
+    (hW : ∀ a x b y P z, iprop(Φ a x b y P z ∧ il.pre W a x b y P z) ⊢ W a x b y P z) :
+    ⊢ □ (∀ a x b y P z, il.pre W a x b y P z -∗ Φ a x b y P z) -∗
+      ∀ a x b y P z, il a x b y P z -∗ Φ a x b y P z :=
+  il.ind_wf Φ W hW
+example (G : (Nat → Nat → Bool → Bool → PROP → Nat → PROP) → Nat → Nat → Bool → Bool → PROP → Nat →
+      PROP)
+    (g : Nat → Nat → Bool → Bool → PROP → Nat → PROP)
+    (hg : ∀ a x b y P z, G g a x b y P z ⊢ g a x b y P z) :
+    ⊢ □ (∀ Φ a x b y P z, il.pre Φ a x b y P z -∗ G Φ a x b y P z) -∗
+      ∀ a x b y P z, il a x b y P z -∗ g a x b y P z :=
+  il.strong_mono G g hg
 
--- Interleaved: V F V F, greatest fixpoint.
+-- Interleaved: changed and unchanged, alternating, greatest fixpoint.
 icofix il2 (x : Nat) (a : Nat) (y : Bool) (b : Bool) : PROP :=
   iprop(⌜a = x⌝ ∗ ▷ il2 (x + 1) a (!y) b)
 
-example (x a : Nat) (y b : Bool) : il2 (PROP := PROP) x a y b = il2.pre a b (fun x y => il2 x a y b) x y :=
+example (x a : Nat) (y b : Bool) : il2 (PROP := PROP) x a y b = il2.pre il2 x a y b :=
   il2.unfold x a y b
-example (a : Nat) (b : Bool) (Φ W : Nat → Bool → PROP) (hW : ∀ x y, W x y ⊢ iprop(Φ x y ∨ il2.pre a b W x y)) :
-    ⊢ □ (∀ x y, Φ x y -∗ il2.pre a b W x y) -∗ ∀ x y, Φ x y -∗ il2 x a y b :=
-  il2.paco a b Φ W hW
+example (Φ W : Nat → Nat → Bool → Bool → PROP)
+    (hW : ∀ x a y b, W x a y b ⊢ iprop(Φ x a y b ∨ il2.pre W x a y b)) :
+    ⊢ □ (∀ x a y b, Φ x a y b -∗ il2.pre W x a y b) -∗ ∀ x a y b, Φ x a y b -∗ il2 x a y b :=
+  il2.paco Φ W hW
 example (a : Nat) (b : Bool) (x : Nat) (y : Bool) : Absorbing (il2 (PROP := PROP) x a y b) := inferInstance
 
--- Four varying, four fixed, interleaved.
+-- Eight parameters, four of them passed on unchanged, interleaved.
 ifix big (a : Nat) (P : PROP) (b : Bool) (Q : PROP) (c : Nat) (R : PROP) (d : Bool) (S : PROP) :
     PROP :=
   iprop(P ∗ Q ∗ R ∗ S ∨ ▷ big (a + 1) P (!b) Q (c + 1) R (!d) S)
 
-example (P Q R S : PROP) (Φ : Nat → Bool → Nat → Bool → PROP) :
-    ⊢ □ (∀ a b c d, big.pre P Q R S Φ a b c d -∗ Φ a b c d) -∗
-      ∀ a b c d, big a P b Q c R d S -∗ Φ a b c d :=
-  big.iter P Q R S Φ
+example (Φ : Nat → PROP → Bool → PROP → Nat → PROP → Bool → PROP → PROP) :
+    ⊢ □ (∀ a P b Q c R d S, big.pre Φ a P b Q c R d S -∗ Φ a P b Q c R d S) -∗
+      ∀ a P b Q c R d S, big a P b Q c R d S -∗ Φ a P b Q c R d S :=
+  big.iter Φ
 
 -- A parameter swapped with another varies.
 ifix sw2 (a b : Nat) : PROP := iprop% ⌜a = b⌝ ∨ ▷ sw2 b a
@@ -121,10 +133,10 @@ example (Φ : Nat → PROP → PROP) :
 
 /-! ## Implicit, strict-implicit, instance-implicit binders -/
 
--- Implicit fixed.
+-- Implicit varying (its name is not in the result type).
 ifix imf {P : PROP} (n : Nat) : PROP := iprop% P ∨ imf (P := P) (n + 1)
-example (P : PROP) (Φ : Nat → PROP) :
-    ⊢ □ (∀ n, imf.pre (P := P) Φ n -∗ Φ n) -∗ ∀ n, imf (P := P) n -∗ Φ n := imf.iter Φ
+example (Φ : PROP → Nat → PROP) :
+    ⊢ □ (∀ P n, imf.pre (fun {P} => Φ P) (P := P) n -∗ Φ P n) -∗ ∀ P n, imf (P := P) n -∗ Φ P n := imf.iter Φ
 
 -- Implicit varying: the motive is `Φ : Nat → PROP` (`pre` still takes `{n : Nat} → PROP`).
 ifix imv {n : Nat} : PROP := iprop% ⌜n = 0⌝ ∨ ▷ imv (n := n + 1)
@@ -139,10 +151,11 @@ example (n : Nat) : Persistent (imv (PROP := PROP) (n := n)) := inferInstance
 ifix simv ⦃n : Nat⦄ : PROP := iprop% ⌜n = 0⌝ ∨ ▷ simv (n := n + 1)
 example (n : Nat) : Persistent (simv (PROP := PROP) (n := n)) := inferInstance
 
--- Instance-implicit fixed, after a varying parameter.
+-- Implicit and instance-implicit, passed on unchanged, after another parameter.
 ifix late (n : Nat) {α : Type} [Inhabited α] : PROP := iprop% ⌜n = 0⌝ ∨ ▷ late (α := α) (n + 1)
-example {α : Type} [Inhabited α] (Φ : Nat → PROP) :
-    ⊢ □ (∀ n, late.pre (α := α) Φ n -∗ Φ n) -∗ ∀ n, late (α := α) n -∗ Φ n := late.iter Φ
+example (Φ : Nat → {α : Type} → [Inhabited α] → PROP) :
+    ⊢ □ (∀ n α (_ : Inhabited α), late.pre Φ n (α := α) -∗ Φ n (α := α)) -∗
+      ∀ n α (_ : Inhabited α), late n (α := α) -∗ Φ n (α := α) := late.iter Φ
 example [BIAffine PROP] {α : Type} [Inhabited α] (n : Nat) : Affine (late (PROP := PROP) n (α := α)) :=
   inferInstance
 
@@ -152,75 +165,118 @@ example [BIAffine PROP] (b : Bool) : Persistent (instv (PROP := PROP) b) := infe
 
 /-! ## Dependent parameters -/
 
--- Varying depends on fixed.
+-- A changing parameter depends on an unchanged one.
 ifix dep1 (n : Nat) (i : Fin (n + 1)) : PROP := iprop% ⌜i.val = 0⌝ ∨ ▷ dep1 n 0
-example (n : Nat) (Φ : Fin (n + 1) → PROP) :
-    ⊢ □ (∀ i, dep1.pre n Φ i -∗ Φ i) -∗ ∀ i, dep1 n i -∗ Φ i := dep1.iter n Φ
+example (Φ : (n : Nat) → Fin (n + 1) → PROP) :
+    ⊢ □ (∀ n i, dep1.pre Φ n i -∗ Φ n i) -∗ ∀ n i, dep1 n i -∗ Φ n i := dep1.iter Φ
 
--- Varying depends on varying.
+-- A changing parameter depends on a changing one.
 ifix dep2 (n : Nat) (i : Fin (n + 1)) : PROP := iprop% ⌜i.val = 0⌝ ∨ ▷ dep2 (n + 1) 0
 example (Φ : (n : Nat) → Fin (n + 1) → PROP) :
     ⊢ □ (∀ n i, dep2.pre (fun n i => iprop(Φ n i ∧ dep2 n i)) n i -∗ Φ n i) -∗
       ∀ n i, dep2 n i -∗ Φ n i := dep2.ind Φ
 
--- Fixed between two varying ones, the later varying one depending on it.
+-- Unchanged between two changing ones, the later changing one depending on it.
 ifix dep5 (x : Nat) (n : Nat) (v : Fin (n + 1)) : PROP := iprop% ⌜v.val = x⌝ ∨ ▷ dep5 (x + 1) n 0
 example (x n : Nat) (v : Fin (n + 1)) :
-    dep5 (PROP := PROP) x n v = dep5.pre n (fun x => dep5 x n) x v := dep5.unfold x n v
-example (n : Nat) (Φ : Nat → Fin (n + 1) → PROP) :
-    ⊢ □ (∀ x v, iprop(⌜v.val = x⌝ ∨ ▷ Φ (x + 1) 0) -∗ Φ x v) -∗ ∀ x v, dep5 x n v -∗ Φ x v :=
-  dep5.iter n Φ
+    dep5 (PROP := PROP) x n v = dep5.pre dep5 x n v := dep5.unfold x n v
+example (Φ : Nat → (n : Nat) → Fin (n + 1) → PROP) :
+    ⊢ □ (∀ x n v, iprop(⌜v.val = x⌝ ∨ ▷ Φ (x + 1) n 0) -∗ Φ x n v) -∗
+      ∀ x n v, dep5 x n v -∗ Φ x n v :=
+  dep5.iter Φ
 example [BIAffine PROP] (x n : Nat) (v : Fin (n + 1)) : Affine (dep5 (PROP := PROP) x n v) :=
   inferInstance
 
--- Fixed parameters whose types depend on each other, after... and before a varying one.
+-- Unchanged parameters whose types depend on each other, before a changing one.
 ifix dep4 (n : Nat) (v : Fin (n + 1)) (k : Nat) : PROP := iprop% ⌜v.val = k⌝ ∨ ▷ dep4 n v (k + 1)
-example (n : Nat) (v : Fin (n + 1)) (Φ : Nat → PROP) :
-    ⊢ □ (∀ k, dep4.pre n v Φ k -∗ Φ k) -∗ ∀ k, dep4 n v k -∗ Φ k := dep4.iter n v Φ
+example (Φ : (n : Nat) → Fin (n + 1) → Nat → PROP) :
+    ⊢ □ (∀ n v k, dep4.pre Φ n v k -∗ Φ n v k) -∗ ∀ n v k, dep4 n v k -∗ Φ n v k := dep4.iter Φ
+
+-- Limitation: an auto-bound implicit is a parameter of the definition, not of the recursive call,
+-- so the call cannot name it, `(n := n)`.
+/--
+error: Invalid argument name `n` for function
+
+Hint: Perhaps you meant one of the following parameter names:
+  • `_i`: n̵_̲i̲
+  • `P`: n̵P̲
+-/
+#guard_msgs in
+ifix dep3 (_i : Fin (n + 1)) (P : PROP) : PROP := iprop% P ∨ ▷ dep3 (n := n) 0 P
 
 -- Auto-bound implicit fixed, mentioned only in the type of a varying parameter.
-ifix dep3 (_i : Fin (n + 1)) (P : PROP) : PROP := iprop% P ∨ ▷ dep3 (n := n) 0 P
-example {n : Nat} (P : PROP) (Φ : Fin (n + 1) → PROP) :
-    ⊢ □ (∀ i, dep3.pre P Φ i -∗ Φ i) -∗ ∀ i, dep3 i P -∗ Φ i := dep3.iter P Φ
+ifix dep3' (_i : Fin (n + 1)) (P : PROP) : PROP := iprop% P ∨ ▷ dep3' 0 P
+example {n : Nat} (Φ : Fin (n + 1) → PROP → PROP) :
+    ⊢ □ (∀ i P, dep3'.pre Φ i P -∗ Φ i P) -∗ ∀ i P, dep3' i P -∗ Φ i P := dep3'.iter Φ
 
 /-! ## Prop-, Type- and universe-polymorphic parameters -/
 
 ifix propv (p : Prop) : PROP := iprop% ⌜p⌝ ∨ ▷ propv (¬p)
 example (Φ : Prop → PROP) : ⊢ □ (∀ p, propv.pre Φ p -∗ Φ p) -∗ ∀ p, propv p -∗ Φ p := propv.iter Φ
 
--- A proof as a fixed parameter is fine.
-ifix prff (n : Nat) (h : n > 0) (k : Nat) : PROP := iprop% ⌜k = n⌝ ∨ ▷ prff n h (k + 1)
-example (n : Nat) (h : n > 0) (Φ : Nat → PROP) :
+-- A proof as a fixed (section variable) parameter is fine.
+section
+variable (n : Nat) (h : n > 0)
+ifix prff (k : Nat) : PROP := iprop% ⌜(⟨n, h⟩ : {m : Nat // m > 0}).1 = k⌝ ∨ ▷ prff (k + 1)
+example (Φ : Nat → PROP) :
     ⊢ □ (∀ k, prff.pre n h Φ k -∗ Φ k) -∗ ∀ k, prff n h k -∗ Φ k := prff.iter n h Φ
+end
 
 ifix typev (α : Type) : PROP := iprop% ⌜Nonempty α⌝ ∨ ▷ typev (List α)
 example (α : Type) : Persistent (typev (PROP := PROP) α) := inferInstance
 
 ifix typef (α : Type) (xs : List α) : PROP :=
   iprop(⌜xs = []⌝ ∨ ∃ x ys, ⌜xs = x :: ys⌝ ∗ typef α ys)
-example (α : Type) (Φ : List α → PROP) :
-    ⊢ □ (∀ xs, typef.pre α Φ xs -∗ Φ xs) -∗ ∀ xs, typef α xs -∗ Φ xs := typef.iter α Φ
+example (Φ : (α : Type) → List α → PROP) :
+    ⊢ □ (∀ α xs, typef.pre Φ α xs -∗ Φ α xs) -∗ ∀ α xs, typef α xs -∗ Φ α xs := typef.iter Φ
 
 universe u w
 
 ifix upoly {α : Type u} (xs : List α) : PROP :=
   iprop(⌜xs = []⌝ ∨ ∃ x ys, ⌜xs = x :: ys⌝ ∗ upoly ys)
-example {α : Type u} (Φ : List α → PROP) :
-    ⊢ □ (∀ xs, upoly.pre Φ xs -∗ Φ xs) -∗ ∀ xs, upoly xs -∗ Φ xs := upoly.iter Φ
+example (Φ : (α : Type u) → List α → PROP) :
+    ⊢ □ (∀ α xs, upoly.pre (fun {α} => Φ α) (α := α) xs -∗ Φ α xs) -∗ ∀ α xs, upoly (α := α) xs -∗ Φ α xs :=
+  upoly.iter Φ
 
 -- A varying `Sort`.
 ifix uvary (α : Sort u) : PROP := iprop% ⌜Nonempty α⌝ ∨ ▷ uvary (α → α)
 example (Φ : Sort u → PROP) :
     ⊢ □ (∀ (α : Sort u), uvary.pre Φ α -∗ Φ α) -∗ ∀ (α : Sort u), uvary α -∗ Φ α := uvary.iter Φ
 
--- Own BI, with a fixed `Sort w` domain.
+-- Limitation: `PROP'` and `[BI PROP']` are fixed, but `{α : Sort w}` varies (the `Sort` limitation).
+/--
+error: failed to synthesize
+  PointwiseLifting PROP' ({α : Sort w} → (α → Nat) → α → Nat → PROP')
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+---
+warning: unused `partial_fixpoint`, function is not recursive
+-/
+#guard_msgs in
 ifix uu {PROP' : Type u} [BI PROP'] {α : Sort w} (f : α → Nat) (x : α) (n : Nat) : PROP' :=
   iprop(⌜f x = n⌝ ∨ ▷ uu f x (n + 1))
+
+-- Limitation: an explicit BI parameter makes the result type depend on a parameter.
 /--
-info: @uu.iter : ∀ {PROP' : Type u_1} [inst : BI PROP'] {α : Sort u_2} (f : α → Nat) (x : α) (Φ : Nat → PROP'),
-  ⊢ (□ ∀ n, uu.pre f x Φ n -∗ Φ n) -∗ ∀ n, uu f x n -∗ Φ n
+error: the result type
+  PROP'
+depends on the parameters
+---
+warning: unused `partial_fixpoint`, function is not recursive
 -/
-#guard_msgs in #check @uu.iter
+#guard_msgs in
+ifix uuE (PROP' : Type u) [BI PROP'] (n : Nat) : PROP' := iprop% ⌜0 = n⌝ ∨ ▷ uuE PROP' (n + 1)
+
+-- Own BI, with a fixed `Sort w` domain, as section variables.
+section
+variable {PROP' : Type u} [BI PROP'] {α : Sort w} (f : α → Nat) (x : α)
+ifix uu' (n : Nat) : PROP' := iprop% ⌜f x = n⌝ ∨ ▷ uu' (n + 1)
+/--
+info: @uu'.iter : ∀ {PROP' : Type u_1} [inst : BI PROP'] {α : Sort u_2} (f : α → Nat) (x : α) (Φ : Nat → PROP'),
+  ⊢ (□ ∀ n, uu'.pre f x Φ n -∗ Φ n) -∗ ∀ n, uu' f x n -∗ Φ n
+-/
+#guard_msgs in #check @uu'.iter
+end
 
 -- Universes only the body mentions.
 ifix ub (n : Nat) : PROP := iprop% ⌜PUnit.{3} = PUnit.{3}⌝ ∨ ▷ ub (n + 1)
@@ -236,16 +292,16 @@ example (Φ : (n : Nat) ×' Fin (n + 1) → PROP) :
 /-! ## Function-typed parameters -/
 
 ifix funv (f : Nat → Nat) (n : Nat) : PROP := iprop% ⌜f n = 0⌝ ∨ ▷ funv (f ∘ Nat.succ) n
-example (n : Nat) (Φ : (Nat → Nat) → PROP) :
-    ⊢ □ (∀ f, funv.pre n Φ f -∗ Φ f) -∗ ∀ f, funv f n -∗ Φ f := funv.iter n Φ
+example (Φ : (Nat → Nat) → Nat → PROP) :
+    ⊢ □ (∀ f n, funv.pre Φ f n -∗ Φ f n) -∗ ∀ f n, funv f n -∗ Φ f n := funv.iter Φ
 
 ifix funf (f : Nat → Nat) (n : Nat) : PROP := iprop% ⌜f n = 0⌝ ∨ ▷ funf f (f n)
-example (f : Nat → Nat) (Φ : Nat → PROP) :
-    ⊢ □ (∀ n, funf.pre f Φ n -∗ Φ n) -∗ ∀ n, funf f n -∗ Φ n := funf.iter f Φ
+example (Φ : (Nat → Nat) → Nat → PROP) :
+    ⊢ □ (∀ f n, funf.pre Φ f n -∗ Φ f n) -∗ ∀ f n, funf f n -∗ Φ f n := funf.iter Φ
 
 ifix hof (Q : Nat → PROP) (n : Nat) : PROP := iprop% Q n ∨ ▷ hof Q (n + 1)
-example (Q Φ : Nat → PROP) :
-    ⊢ □ (∀ n, iprop(Q n ∨ ▷ Φ (n + 1)) -∗ Φ n) -∗ ∀ n, hof Q n -∗ Φ n := hof.iter Q Φ
+example (Φ : (Nat → PROP) → Nat → PROP) :
+    ⊢ □ (∀ Q n, iprop(Q n ∨ ▷ Φ Q (n + 1)) -∗ Φ Q n) -∗ ∀ Q n, hof Q n -∗ Φ Q n := hof.iter Φ
 
 /-! ## Section variables, defaults, no type, `fun` with alternatives -/
 
@@ -255,14 +311,24 @@ ifix sv (n : Nat) : PROP := iprop% Q ∨ ▷ sv (n + 1)
 example (Φ : Nat → PROP) : ⊢ □ (∀ n, sv.pre Q Φ n -∗ Φ n) -∗ ∀ n, sv Q n -∗ Φ n := sv.iter Q Φ
 end
 
+-- Limitation: a definition without a type is rejected.
+/-- error: ifix: the type of the fixpoint is needed -/
+#guard_msgs in
 ifix noty (n : Nat) := iprop% ⌜n = 0⌝ ∨ ▷ (noty (n + 1) : PROP)
-example (Φ : Nat → PROP) : ⊢ □ (∀ n, noty.pre Φ n -∗ Φ n) -∗ ∀ n, noty n -∗ Φ n := noty.iter Φ
 
 ifix pm (P : PROP) : Nat → PROP := fun
   | 0 => P
   | n + 1 => iprop(▷ pm P n)
-example (P : PROP) (Φ : Nat → PROP) :
-    ⊢ □ (∀ n, pm.pre P Φ n -∗ Φ n) -∗ ∀ n, pm P n -∗ Φ n := pm.iter P Φ
+example (Φ : PROP → Nat → PROP) :
+    ⊢ □ (∀ P n, pm.pre Φ P n -∗ Φ P n) -∗ ∀ P n, pm P n -∗ Φ P n := pm.iter Φ
+
+-- Rejected: `where` declarations after the alternatives.
+/-- error: ifix: the body takes no termination hints or `where` declarations -/
+#guard_msgs in
+ifix pmw (P : PROP) : Nat → PROP
+  | 0 => P
+  | n + 1 => iprop(▷ pmw (f P) n)
+where f (P : PROP) : PROP := P
 
 /-! ## Result types that are not literally `PROP` -/
 
@@ -274,17 +340,17 @@ example (Φ : Nat → PROP) : ⊢ □ (∀ n, abr.pre Φ n -∗ Φ n) -∗ ∀ n
 ifix rdw (n : Nat) : Nat → RP PROP := fun m => iprop(⌜n = m⌝ ∨ ▷ rdw (n + 1) (m + 1))
 example [BIAffine PROP] (n m : Nat) : Affine (rdw (PROP := PROP) n m) := inferInstance
 
--- Function-typed result: its parameters are inferred too (`m` fixed here).
+-- Function-typed result: its parameters are parameters too (`m` passed on unchanged here).
 ifix fres (n : Nat) : Nat → PROP := fun m => iprop(⌜n = m⌝ ∨ ▷ fres (n + 1) m)
-example (n m : Nat) : fres (PROP := PROP) n m = fres.pre m (fun n => fres n m) n := fres.unfold n m
-example (m : Nat) (Φ : Nat → PROP) :
-    ⊢ □ (∀ n, fres.pre m Φ n -∗ Φ n) -∗ ∀ n, fres n m -∗ Φ n := fres.iter m Φ
+example (n m : Nat) : fres (PROP := PROP) n m = fres.pre fres n m := fres.unfold n m
+example (Φ : Nat → Nat → PROP) :
+    ⊢ □ (∀ n m, fres.pre Φ n m -∗ Φ n m) -∗ ∀ n m, fres n m -∗ Φ n m := fres.iter Φ
 
 icofix fres5 (P : PROP) : Nat → Bool → PROP := fun m b => iprop(P ∗ ▷ fres5 P (m + 1) !b)
 example (P : PROP) [Absorbing P] (m : Nat) (b : Bool) : Absorbing (fres5 P m b) := inferInstance
-example (P : PROP) (Φ : Nat → Bool → PROP) :
-    ⊢ □ (∀ m b, Φ m b -∗ iprop(P ∗ ▷ Φ (m + 1) !b)) -∗ ∀ m b, Φ m b -∗ fres5 P m b :=
-  fres5.coiter P Φ
+example (Φ : PROP → Nat → Bool → PROP) :
+    ⊢ □ (∀ P m b, Φ P m b -∗ iprop(P ∗ ▷ Φ P (m + 1) !b)) -∗ ∀ P m b, Φ P m b -∗ fres5 P m b :=
+  fres5.coiter Φ
 
 abbrev Pred2 (PROP : Type _) := Nat → Bool → PROP
 ifix ali : Pred2 PROP := fun n b => iprop(⌜n = 0⌝ ∨ ▷ ali (n + 1) !b)
@@ -310,7 +376,7 @@ example (Φ : Nat → Nat → Nat → Nat → Nat → Nat → Nat → PROP) :
 section
 variable {α β : Type _}
 
--- Both varying, with OFEs: `ne`.
+-- Both varying, with OFEs: `ne`. The leading `[OFE α]` is fixed.
 ifix o1 [OFE α] (x y : α) : PROP := iprop% ▷ o1 y x
 example [OFE α] {n : Nat} {x x' y y' : α} (hx : x ≡{n}≡ x') (hy : y ≡{n}≡ y') :
     o1 (PROP := PROP) x y ≡{n}≡ o1 x' y' :=
@@ -353,12 +419,16 @@ error: Unknown constant `IrisTest.Stress.Params.o2.ne`
 -/
 #guard_msgs in #check @o2.ne
 
--- An OFE parameter that is fixed: no `ne` (the spec asks for `ne` only for varying ones).
-ifix ofix [OFE α] (x : α) (k : Nat) : PROP := iprop% ▷ ofix x (k + 1)
+-- An OFE parameter that is fixed (a section variable): no `ne` (the spec asks for `ne` only for
+-- varying ones).
+section
+variable (x : PROP)
+ifix ofix (k : Nat) : PROP := iprop% x ∗ ▷ ofix (k + 1)
 /--
 error: Unknown constant `IrisTest.Stress.Params.ofix.ne`
 -/
 #guard_msgs in #check @ofix.ne
+end
 end
 
 /-! ## Five and more varying parameters (default instance budget) -/
@@ -403,8 +473,8 @@ example (n : Nat) : axBody (PROP := PROP) n = axBody.pre axBody n := axBody.unfo
 
 -- Laws drop the `optParam`.
 ifix dv (n : Nat := 0) (k : Nat) : PROP := iprop% ⌜n = k⌝ ∨ ▷ dv (n + 1) k
-example (k : Nat) (Φ : Nat → PROP) :
-    ⊢ □ (∀ n, dv.pre k Φ n -∗ Φ n) -∗ ∀ n, dv n k -∗ Φ n := dv.iter k Φ
+example (Φ : Nat → Nat → PROP) :
+    ⊢ □ (∀ n k, dv.pre Φ n k -∗ Φ n k) -∗ ∀ n k, dv n k -∗ Φ n k := dv.iter Φ
 
 /-! ## Limitations and remaining bugs -/
 
@@ -413,36 +483,48 @@ variable {α : Type _}
 
 -- Limitation: varying parameters of type `Prop`/`Sort` (here a proof) are out of scope.
 /--
-error: ifix_monotone: the order of
-  (n : Nat) → n > 0 → PROP
-is not the order of `IOrder`
+error: failed to synthesize
+  PointwiseLifting PROP ((n : Nat) → n > 0 → PROP)
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+---
+warning: unused `partial_fixpoint`, function is not recursive
 -/
 #guard_msgs in
 ifix prfv (n : Nat) (h : n > 0) : PROP := iprop% ⌜n = 1⌝ ∨ ▷ prfv (n + 1) (Nat.succ_pos n)
 
 -- Limitation: same, for an implicit proof parameter.
 /--
-error: ifix_monotone: the order of
-  (n : Nat) → {h : n > 0} → PROP
-is not the order of `IOrder`
+error: failed to synthesize
+  PointwiseLifting PROP ((n : Nat) → {h : n > 0} → PROP)
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+---
+warning: unused `partial_fixpoint`, function is not recursive
 -/
 #guard_msgs in
 ifix prfi (n : Nat) {h : n > 0} : PROP := iprop% ⌜n = 1⌝ ∨ ▷ prfi (n + 1) (h := Nat.succ_pos n)
 
 -- Limitation: same, for an autoParam (a proof) that varies.
 /--
-error: ifix_monotone: the order of
-  (n : Nat) → autoParam (n = n) ap._auto_1 → PROP
-is not the order of `IOrder`
+error: failed to synthesize
+  PointwiseLifting PROP ((n : Nat) → autoParam (n = n) ap._auto_1 → PROP)
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+---
+warning: unused `partial_fixpoint`, function is not recursive
 -/
 #guard_msgs in
 ifix ap (n : Nat) (h : n = n := by rfl) : PROP := iprop% ⌜n = 0⌝ ∨ ▷ ap (n + 1)
 
 -- Limitation: same, for a varying parameter whose type lives in `Sort w`.
 /--
-error: ifix_monotone: the order of
-  β → PROP
-is not the order of `IOrder`
+error: failed to synthesize
+  PointwiseLifting PROP ({β : Sort w} → (β → β) → β → PROP)
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+---
+warning: unused `partial_fixpoint`, function is not recursive
 -/
 #guard_msgs in
 ifix uv {β : Sort w} (f : β → β) (x : β) : PROP := iprop% ▷ uv f (f x)
@@ -459,13 +541,13 @@ end
 icofix fres6 (P : PROP) : Nat → Bool → PROP := fun m b => iprop(P ∗ ▷ fres6 P (m + 1) !b)
 /--
 info: @fres6.unfold : ∀ {PROP : Type u_1} [inst : BI PROP] (P : PROP) (a : Nat) (a_1 : Bool),
-  fres6 P a a_1 = fres6.pre P (fres6 P) a a_1
+  fres6 P a a_1 = fres6.pre fres6 P a a_1
 -/
 #guard_msgs in #check @fres6.unfold
 /--
-info: @fres6.absorbing : ∀ {PROP : Type u_1} [inst : BI PROP] (P : PROP)
-  [h : ∀ (m : Nat) (b : Bool), Absorbing (fres6.pre P (fun i i_1 => iprop(<absorb> fres6 P i i_1)) m b)] (i : Nat)
-  (i_1 : Bool), Absorbing (fres6 P i i_1)
+info: @fres6.absorbing : ∀ {PROP : Type u_1} [inst : BI PROP]
+  [h : ∀ (P : PROP) (m : Nat) (b : Bool), Absorbing (fres6.pre (fun P i i_1 => iprop(<absorb> fres6 P i i_1)) P m b)]
+  (P : PROP) (i : Nat) (i_1 : Bool), Absorbing (fres6 P i i_1)
 -/
 #guard_msgs in #check @fres6.absorbing
 
@@ -480,13 +562,19 @@ section
 variable {α : Type _}
 ifix neClash [OFE α] (f : α → α) (x y : α) (n : Nat) : PROP := iprop% ▷ neClash f y x (n + 1)
 /--
-info: @neClash.ne : ∀ {PROP : Type u_1} [inst : BI PROP] {α : Type u_2} [inst_1 : OFE α] (f : α → α) {n' : Nat},
-  (∀ (f' g : α → α → Nat → PROP),
-      (∀ (x x' : α), x ≡{n'}≡ x' → ∀ (y y' : α), y ≡{n'}≡ y' → ∀ (n : Nat), f' x y n ≡{n'}≡ g x' y' n) →
-        ∀ (x x' : α),
-          x ≡{n'}≡ x' →
-            ∀ (y y' : α), y ≡{n'}≡ y' → ∀ (n : Nat), neClash.pre f f' x y n ≡{n'}≡ neClash.pre f g x' y' n) →
-    ∀ (x x' : α), x ≡{n'}≡ x' → ∀ (y y' : α), y ≡{n'}≡ y' → ∀ (n : Nat), neClash f x y n ≡{n'}≡ neClash f x' y' n
+info: @neClash.ne : ∀ {PROP : Type u_1} [inst : BI PROP] {α : Type u_2} [inst_1 : OFE α] {n' : Nat},
+  (∀ (f' g : (α → α) → α → α → Nat → PROP),
+      (∀ (f f'_1 : α → α),
+          f ≡{n'}≡ f'_1 →
+            ∀ (x x' : α), x ≡{n'}≡ x' → ∀ (y y' : α), y ≡{n'}≡ y' → ∀ (n : Nat), f' f x y n ≡{n'}≡ g f'_1 x' y' n) →
+        ∀ (f f'_1 : α → α),
+          f ≡{n'}≡ f'_1 →
+            ∀ (x x' : α),
+              x ≡{n'}≡ x' →
+                ∀ (y y' : α), y ≡{n'}≡ y' → ∀ (n : Nat), neClash.pre f' f x y n ≡{n'}≡ neClash.pre g f'_1 x' y' n) →
+    ∀ (f f' : α → α),
+      f ≡{n'}≡ f' →
+        ∀ (x x' : α), x ≡{n'}≡ x' → ∀ (y y' : α), y ≡{n'}≡ y' → ∀ (n : Nat), neClash f x y n ≡{n'}≡ neClash f' x' y' n
 -/
 #guard_msgs in #check @neClash.ne
 end

@@ -16,7 +16,8 @@ local bi PROP
 
 variable {PROP : Type _} [BI PROP] [BILaterContractive PROP] [Inhabited PROP]
 
-/-! Guarded fixpoints by `partial_fixpoint` on approximations, with a fixed parameter `k`. -/
+/-! Guarded fixpoints by `partial_fixpoint` on approximations of a function, with a fixed
+parameter `k`: `bind₂` at a single point. -/
 
 -- One varying parameter.
 def body1 (k : Nat) (Φ : Nat → PROP) (n : Nat) : PROP := iprop% ▷ Φ (n + k)
@@ -24,11 +25,12 @@ def body1 (k : Nat) (Φ : Nat → PROP) (n : Nat) : PROP := iprop% ▷ Φ (n + k
 instance (k : Nat) : Contractive (body1 (PROP := PROP) k) where
   distLater_dist h n := Contractive.distLater_dist fun m hm => h m hm (n + k)
 
-noncomputable def approx1 (k : Nat) : Approx (Nat → PROP) := lift (body1 k) (approx1 k)
-partial_fixpoint monotonicity fun _ _ h => lift_mono _ _ _ h
+noncomputable def approx1 (k : Nat) : Approx (Nat → PROP) :=
+  bind₂ (D := Approx (Nat → PROP)) (X := Nat → PROP) (approx1 k) (body1 (PROP := PROP) k)
+partial_fixpoint monotonicity bind₂_mono_approx
 
 example (k : Nat) : get (approx1 (PROP := PROP) k) = fixpoint (body1 k) :=
-  get_eq_fixpoint (body1 k) (approx1.eq_1 k).symm
+  eq_fixpoint (body1 k) (bind₂_get_approx (S := approx1 k) (body1 k) (approx1.eq_1 k))
 
 -- Two curried varying parameters.
 def body2 (k : Nat) (Φ : Nat → Bool → PROP) (n : Nat) (b : Bool) : PROP := iprop% ▷ Φ (n + k) !b
@@ -37,11 +39,12 @@ instance (k : Nat) : Contractive (body2 (PROP := PROP) k) where
   distLater_dist h n b := Contractive.distLater_dist fun m hm => h m hm (n + k) !b
 
 noncomputable def approx2 (k : Nat) : Approx (Nat → Bool → PROP) :=
-  lift (body2 k) (approx2 k)
-partial_fixpoint monotonicity fun _ _ h => lift_mono _ _ _ h
+  bind₂ (D := Approx (Nat → Bool → PROP)) (X := Nat → Bool → PROP) (approx2 k)
+    (body2 (PROP := PROP) k)
+partial_fixpoint monotonicity bind₂_mono_approx
 
 example (k : Nat) : get (approx2 (PROP := PROP) k) = fixpoint (body2 k) :=
-  get_eq_fixpoint (body2 k) (approx2.eq_1 k).symm
+  eq_fixpoint (body2 k) (bind₂_get_approx (S := approx2 k) (body2 k) (approx2.eq_1 k))
 
 -- `wp`-shaped: three varying parameters, the last a predicate.
 def body3 (k : Nat) (Ψ : Nat → Bool → (Nat → PROP) → PROP) (n : Nat) (b : Bool)
@@ -53,10 +56,11 @@ instance (k : Nat) : Contractive (body3 (PROP := PROP) k) where
     or_ne.ne .rfl (Contractive.distLater_dist fun m hm => h m hm (n + k) (!b) fun m => Φ (m + 1))
 
 noncomputable def approx3 (k : Nat) : Approx (Nat → Bool → (Nat → PROP) → PROP) :=
-  lift (body3 k) (approx3 k)
-partial_fixpoint monotonicity fun _ _ h => lift_mono _ _ _ h
+  bind₂ (D := Approx (Nat → Bool → (Nat → PROP) → PROP))
+    (X := Nat → Bool → (Nat → PROP) → PROP) (approx3 k) (body3 (PROP := PROP) k)
+partial_fixpoint monotonicity bind₂_mono_approx
 
 example (k : Nat) : get (approx3 (PROP := PROP) k) = fixpoint (body3 k) :=
-  get_eq_fixpoint (body3 k) (approx3.eq_1 k).symm
+  eq_fixpoint (body3 k) (bind₂_get_approx (S := approx3 k) (body3 k) (approx3.eq_1 k))
 
 end IrisTest.Approx

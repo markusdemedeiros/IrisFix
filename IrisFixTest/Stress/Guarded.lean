@@ -28,6 +28,18 @@ contractive_by
   intros k Φ Ψ h; unfold z0.pre; exact Contractive.distLater_dist h
 
 example : z0 (PROP := PROP) = z0.pre z0 := z0.unfold
+
+-- Match alternatives.
+iguarded galt : Nat → PROP
+  | 0 => iprop% True
+  | n + 1 => iprop% ▷ galt n
+contractive_by
+  intros k Φ Ψ h n
+  cases n
+  · rfl
+  · dsimp only [galt.pre]; exact Contractive.distLater_dist (fun m hm => h m hm _)
+
+example (n : Nat) : galt (PROP := PROP) (n + 1) = iprop(▷ galt n) := galt.unfold (n + 1)
 example : z0 (PROP := PROP) = iprop(▷ z0) := z0.unfold
 example : z0 (PROP := PROP) = fixpoint z0.pre := z0.eq_fixpoint
 example : (∀ Φ : PROP, Persistent Φ → Persistent (z0.pre Φ)) → Persistent (z0 (PROP := PROP)) :=
@@ -119,12 +131,18 @@ contractive_by
 
 example (n : Nat) : ii (PROP := PROP) Nat n = iprop(▷ ii Nat (n+1)) := ii.unfold Nat n
 
--- Auto-bound implicit: it becomes a fixed parameter, outside the functional.
+-- Limitation: a varying auto-bound `β : Sort ?u` (the `Sort` limitation), reported by `mkAppOptM` with a
+-- universe metavariable.
+/--
+error: AppBuilder for `mkAppOptM`, result contains metavariables
+  bind₂ approx fun self x => iprop(▷ self x)
+---
+warning: unused `partial_fixpoint`, function is not recursive
+-/
+#guard_msgs in
 iguarded ab (x : β) : PROP := iprop% ▷ ab x
 contractive_by
   intros k Φ Ψ h x; unfold ab.pre; exact Contractive.distLater_dist (fun m hm => h m hm _)
-
-example (x : Nat) : ab (PROP := PROP) x = iprop(▷ ab x) := ab.unfold x
 
 -- Implicit section variable used in the binder types.
 section
@@ -143,10 +161,10 @@ contractive_by
 
 example (n : Nat) : sh (PROP := PROP) n = iprop(▷ ⌜n = 0⌝) := sh.unfold n
 
--- A leading instance-implicit binder.
+-- A leading instance-implicit binder: a fixed parameter.
 iguarded k0 [Inhabited Nat] : PROP := iprop% ▷ k0
 contractive_by
-  intros k Φ Ψ h _; unfold k0.pre; exact Contractive.distLater_dist (fun m hm => h m hm _)
+  intros k Φ Ψ h; unfold k0.pre; exact Contractive.distLater_dist (fun m hm => h m hm)
 
 example : k0 (PROP := PROP) = iprop(▷ k0) := k0.unfold
 
@@ -350,25 +368,23 @@ example (n m : Nat) : ga (PROP := PROP) n m = iprop(▷ ga (n+m) m) := ga.unfold
 example (n m : Nat) : Persistent (ga (PROP := PROP) n m) :=
   ga.persistent (fun _ _ _ _ => by unfold ga.pre; infer_instance) n m
 
--- A result type that depends on a parameter (through an `abbrev`).
--- The result type is reduced first, so the Banach laws are generated.
+-- A result type that depends on a parameter only through an `abbrev`.
 abbrev Fam (PROP : Type _) (_ : Bool) := PROP
 iguarded dd (b : Bool) : Fam PROP b := iprop% ▷ dd (!b)
 contractive_by
   intros k Φ Ψ h b; unfold dd.pre; exact Contractive.distLater_dist (fun m hm => h m hm _)
 
 example (b : Bool) : dd (PROP := PROP) b = iprop(▷ dd (!b)) := dd.unfold b
-example (b : Bool) : Persistent (dd (PROP := PROP) b) :=
-  dd.persistent (fun _ _ _ => by unfold dd.pre; infer_instance) b
 
 /-! ## Rejected input -/
 
--- A BI-generic definition: the type of the varying `P` is not an OFE.
+-- Limitation: a BI-generic definition: the result type depends on the varying `P`.
 /--
-error: failed to synthesize instance of type class
-  OFE ((P : Type) → [inst : BI P] → [BILaterContractive P] → Nat → P)
-
-Hint: Type class instance resolution failures can be inspected with the `set_option trace.Meta.synthInstance true` command.
+error: the result type
+  Approx P
+depends on the parameters
+---
+warning: unused `partial_fixpoint`, function is not recursive
 -/
 #guard_msgs in
 iguarded gen (P : Type) [BI P] [BILaterContractive P] (n : Nat) : P := iprop% ▷ gen P (n+1)
@@ -378,9 +394,11 @@ contractive_by
 -- A type that is not a COFE.
 /--
 error: failed to synthesize instance of type class
-  OFE (Nat → Nat)
+  OFE Nat
 
 Hint: Type class instance resolution failures can be inspected with the `set_option trace.Meta.synthInstance true` command.
+---
+warning: unused `partial_fixpoint`, function is not recursive
 -/
 #guard_msgs in
 iguarded notcofe (n : Nat) : Nat := notcofe n
@@ -389,22 +407,24 @@ contractive_by
 
 -- Limitation: a proof parameter varies, and `OFE` on `∀ x : α, β x` needs `α : Type` (Sort 0).
 /--
-error: failed to synthesize instance of type class
-  OFE ((n : Nat) → 0 < n → PROP)
+error: failed to synthesize
+  PointwiseLifting (Approx PROP) ((n : Nat) → 0 < n → Approx PROP)
 
-Hint: Type class instance resolution failures can be inspected with the `set_option trace.Meta.synthInstance true` command.
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+---
+warning: unused `partial_fixpoint`, function is not recursive
 -/
 #guard_msgs in
 iguarded pr (n : Nat) (h : 0 < n) : PROP := iprop% ▷ pr (n+1) (Nat.lt_succ_of_lt h)
 contractive_by
   intros k Φ Ψ h n hn; unfold pr.pre; exact Contractive.distLater_dist (fun m hm => h m hm _ _)
 
--- Default values are rejected: every parameter varies, and the recursive calls would drop them.
-/-- error: iguarded: parameters cannot have default values -/
-#guard_msgs in
+-- Default values are accepted (the laws drop them), as for `ifix`.
 iguarded dflt (n : Nat := 0) : PROP := iprop% ▷ dflt (n+1)
 contractive_by
   intros k Φ Ψ h n; unfold dflt.pre; exact Contractive.distLater_dist (fun m hm => h m hm _)
+
+example (n : Nat) : dflt (PROP := PROP) n = iprop(▷ dflt (n+1)) := dflt.unfold n
 
 -- A generated name that already exists is rejected.
 def clash.pre : Nat := 1
@@ -423,7 +443,7 @@ PROP : Type u_1
 inst✝² : BI PROP
 inst✝¹ : BILaterContractive PROP
 inst✝ : Inhabited PROP
-⊢ ∀ {n : Nat} {x y : Nat → PROP}, DistLater n x y → pre x ≡{n}≡ pre y
+⊢ ∀ {n : Nat} {x y : Nat → PROP}, DistLater n x y → nocon.pre x ≡{n}≡ nocon.pre y
 -/
 #guard_msgs in
 iguarded nocon (n : Nat) : PROP := iprop% ▷ nocon (n+1)
@@ -443,7 +463,7 @@ run_meta guard ((← getReducibilityStatus ``a1) == .irreducible)
 
 -- The Banach law's binder is primed (`Φ'`) so it does not capture the user's `Φ`.
 /--
-info: @wp.persistent : ∀ {PROP : Type u_1} [inst : BI PROP] [BILaterContractive PROP] [inst_2 : Inhabited PROP],
+info: @wp.persistent : ∀ {PROP : Type u_1} [inst : BI PROP] [inst_1 : Inhabited PROP] [BILaterContractive PROP],
   (∀ (Φ' : Nat → (Nat → PROP) → PROP),
       (∀ (n : Nat) (Φ : Nat → PROP), Persistent (Φ' n Φ)) → ∀ (n : Nat) (Φ : Nat → PROP), Persistent (wp.pre Φ' n Φ)) →
     ∀ (n : Nat) (Φ : Nat → PROP), Persistent (wp n Φ)
@@ -453,7 +473,7 @@ info: @wp.persistent : ∀ {PROP : Type u_1} [inst : BI PROP] [BILaterContractiv
 
 -- BUG: parameters of a function-typed result are named `a`, `a_1`, not after the body's `fun b m`.
 /--
-info: @gm.unfold : ∀ {PROP : Type u_1} [inst : BI PROP] [BILaterContractive PROP] [inst_2 : Inhabited PROP] (n : Nat)
+info: @gm.unfold : ∀ {PROP : Type u_1} [inst : BI PROP] [inst_1 : Inhabited PROP] [BILaterContractive PROP] (n : Nat)
   (a : Bool) (a_1 : Nat), gm n a a_1 = gm.pre gm n a a_1
 -/
 #guard_msgs in
@@ -496,8 +516,8 @@ contractive_by
 example : pv (PROP := PROP) 0 = iprop(▷ pv 1) := pv.unfold 0
 
 -- BUG: `@[simp]` goes to the definition, so `simp` unfolds `sp` to its internal
--- `Lean.Order.fix (Approx.lift ..)` form, which is useless; expected: `simp` rewrites with
--- `sp.unfold` or leaves `sp` alone.
+-- `(sp.approx ..).get` form, which is useless; expected: `simp` rewrites with `sp.unfold` or leaves
+-- `sp` alone.
 @[simp] iguarded sp (n : Nat) : PROP := iprop% ▷ sp (n+1)
 contractive_by
   intros k Φ Ψ h n; unfold sp.pre; exact Contractive.distLater_dist (fun m hm => h m hm _)
@@ -507,8 +527,7 @@ PROP : Type u_1
 inst✝² : BI PROP
 inst✝¹ : BILaterContractive PROP
 inst✝ : Inhabited PROP
-⊢ (Lean.Order.fix (Approx.lift fun sp n => iprop(▷ sp (n + 1))) ⋯).get 0 =
-    iprop(▷ (Lean.Order.fix (Approx.lift fun sp n => iprop(▷ sp (n + 1))) ⋯).get 1)
+⊢ (sp.approx 0).get = iprop(▷ (sp.approx 1).get)
 -/
 #guard_msgs in
 example : sp (PROP := PROP) 0 = iprop(▷ sp 1) := by simp

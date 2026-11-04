@@ -174,7 +174,7 @@ example [BIAffine PROP] (P : PROP) (n : Nat) : Affine (withP P n) := inferInstan
 section
 variable (A : Type) [inst : Inhabited A] (a0 : A)
 ifix tA (x : A) (n : Nat) : PROP := iprop% ⌜x = a0⌝ ∨ tA x (n + 1)
-example (x : A) (n : Nat) : tA (PROP := PROP) A a0 x n = tA.pre A a0 x (tA A a0 x) n := tA.unfold A a0 x n
+example (x : A) (n : Nat) : tA (PROP := PROP) A a0 x n = tA.pre A a0 (tA A a0) x n := tA.unfold A a0 x n
 -- A section instance used only by the body; `x` varies here.
 ifix tB (x : A) (n : Nat) : PROP := iprop% ⌜x = default⌝ ∨ tB a0 (n + 1)
 example (Φ : A → Nat → PROP) :
@@ -192,11 +192,11 @@ example {α : Type} [OFE α] (x y : α) : aimp (PROP := PROP) x y = aimp.pre aim
 section
 variable {P2 : Type _} [BI P2]
 ifix twoBI (f : P2 → PROP) (p : P2) (n : Nat) : PROP := iprop% f p ∨ twoBI f p (n + 1)
-example (f : P2 → PROP) (p : P2) (n : Nat) : twoBI f p n = twoBI.pre f p (twoBI f p) n :=
+example (f : P2 → PROP) (p : P2) (n : Nat) : twoBI f p n = twoBI.pre twoBI f p n :=
   twoBI.unfold f p n
 icofix twoBI2 (f : PROP → P2) (p : PROP) (n : Nat) : P2 := iprop% f p ∗ ▷ twoBI2 f p (n + 1)
 -- (`local bi PROP` would put a `⊢` here at `PROP`, so no statement.)
-example (f : PROP → P2) (p : PROP) (Φ : Nat → P2) := twoBI2.coiter f p Φ
+example (Φ : (PROP → P2) → PROP → Nat → P2) := twoBI2.coiter Φ
 end
 
 section
@@ -260,16 +260,17 @@ section
 attribute [local instance high] Iris.MonotoneFixpoint.instCCPOMonoProp
 -- Rejected: a stronger local `CCPO` instance of the other order overrides the one `icofix` needs.
 /--
-error: ifix_monotone: the order of
-  Nat → PROP
-is not the order of `IOrder`
+error: synthesized type class instance is not definitionally equal to expression inferred by typing rules, synthesized
+  Lean.Order.instOrderPi
+inferred
+  Lean.Order.instCCPOPi.toPartialOrder
 -/
 #guard_msgs in
 icofix coHi (n : Nat) : PROP := iprop% ▷ coHi (n + 1)
 end
 
 -- No generated statement mentions the order classes or the scoped instances (except Lean's own
--- `fixpoint_induct`).
+-- `eq_def`, `eq_unfold`, `eq_<n>`, `fixpoint_induct`, and the `.approx` definitions).
 open Lean in
 /-- info: [] -/
 #guard_msgs in
@@ -278,7 +279,9 @@ open Lean in
   let mut bad : Array Name := #[]
   for (n, ci) in env.constants.map₂.toList do
     unless (`IrisTest.Stress.Context).isPrefixOf n do continue
-    if n.isInternal || n.getString! == "fixpoint_induct" then continue
+    if n.isInternal || n.components.contains `approx then continue
+    let last := n.getString!
+    if last == "fixpoint_induct" || last.startsWith "eq_" then continue
     if ci.type.getUsedConstants.any fun c =>
       [`Iris.MonotoneFixpoint, `Iris.CoMonotoneFixpoint, `Lean.Order, `Iris.IOrder,
         `Iris.INe, `Iris.PointwiseLifting, `Iris.IPointwiseLifting].any
@@ -349,8 +352,8 @@ iguarded gtw (n : Nat) : PROP := iprop% ▷ gtw (n + 1)
 contractive_by
   intros k Φ Ψ h n; unfold gtw.pre; exact Contractive.distLater_dist (fun m hm => h m hm _)
 
--- Rejected: `gtw` is already defined.
-/-- error: `IrisTest.Stress.Context.gtw` has already been declared -/
+-- Rejected: `gtw` is already defined (`gtw.approx` is declared first).
+/-- error: `IrisTest.Stress.Context.gtw.approx` has already been declared -/
 #guard_msgs in
 iguarded gtw (n : Nat) : PROP := iprop% ▷ gtw (n + 1)
 contractive_by

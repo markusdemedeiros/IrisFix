@@ -126,7 +126,13 @@ meta partial def imonoGoal (rules : List Sym.BackwardRule) (goal : MVarId)
       let size ← P.getAppArgs.foldlM (fun n a => return n + (← ctorSize a)) 0
       if (unfolded.find? fn).any (size ≥ ·) then
         throwError "imono: no rule for {fn}, after unfolding it once"
-      try evalTactic (← `(tactic| unfold $(mkIdent fn):ident))
+      -- A fixpoint of `ifix` or `iguarded` unfolds by its `unfold` law, to its body.
+      let unfoldLaw := fn ++ `unfold
+      try
+        if (← getEnv).contains unfoldLaw then
+          evalTactic (← `(tactic|
+            simp (config := { singlePass := true }) only [$(mkIdent unfoldLaw):ident]))
+        else evalTactic (← `(tactic| unfold $(mkIdent fn):ident))
       catch _ => throwError "imono: no rule for {fn}"
       for goal in ← getGoals do
         let recursive := ((← instantiateMVars (← goal.getType)).find? (·.isConstOf fn)).isSome

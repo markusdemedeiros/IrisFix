@@ -8,6 +8,7 @@ module
 public import IrisFix.BI.Lib.Monotone
 public import IrisFix.Std.Order
 public import IrisFix.Std.PointwiseLifting
+public import IrisFix.Std.Approximation
 import all Init.Internal.Order.Basic
 
 /-! # Iris fixpoints
@@ -22,12 +23,14 @@ fixpoint, in the reverse order, is the law for the greatest fixpoint.
 
 Every structure on `Pred` is a structure on `PROP`, at every point: `a ⊑ᵢ b` is `IOrder.le`
 lifted by `IPointwiseLifting.irel`, which quantifies with the BI's `∀`; `a ⊓ᵢ b` is `IOrder.meet`
-lifted by `zip`; `all C a` is `C` at every point, and `map m a` is `m` at every point. `INe`, agreement
-up to `n` in the arguments that have OFEs, lifts by its own `Pi` instances. All of them unfold, at
-concrete instances, to the plain curried statements.
+lifted by `zip`; `all C a` is `C` at every point, and `map m a` is `m` at every point. `INe`,
+agreement up to `n` in the arguments that have OFEs, lifts by its own `Pi` instances. All of them
+unfold, at concrete instances, to the plain curried statements.
 
-The laws hold at any fixpoint `IsFix F fn`, such as a `partial_fixpoint`, by its induction
-principle and its unfolding. -/
+`PROP` approximates itself by downsets (`Downsets`), so `bind₂ · k` is monotone for every body
+`k`, and is `k` for a monotone one (`bind₂_mono_downset`, `IsFix.of_bind₂_downset`). The laws hold
+at any fixpoint `IsFix F fn`, such as a `partial_fixpoint`, by its induction principle and its
+unfolding. -/
 
 @[expose] public section
 
@@ -160,6 +163,12 @@ scoped instance instINeMonoProp : INe PROP where
       is_sup_unique (CCPO.csup_spec hc₂) (sExists_is_sup _)]
     exact sExists_ne h
 
+/-- Least fixpoints: `P` approximates what entails it, and a set by its existential. -/
+scoped instance instApproximationMonoProp : Approximation PROP PROP :=
+  .downsets sExists sExists_is_sup
+
+scoped instance : Downsets PROP := ⟨fun _ _ => .rfl, sExists_is_sup⟩
+
 end MonotoneFixpoint
 
 namespace CoMonotoneFixpoint
@@ -202,6 +211,12 @@ scoped instance instINeAntiProp : INe PROP where
     rw [is_sup_unique (CCPO.csup_spec hc₁) (sForall_is_sup _),
       is_sup_unique (CCPO.csup_spec hc₂) (sForall_is_sup _)]
     exact sForall_ne h
+
+/-- Greatest fixpoints: `P` approximates what it entails, and a set by its universal. -/
+scoped instance instApproximationAntiProp : Approximation PROP PROP :=
+  .downsets sForall sForall_is_sup
+
+scoped instance : Downsets PROP := ⟨fun _ _ => .rfl, sForall_is_sup⟩
 
 end CoMonotoneFixpoint
 

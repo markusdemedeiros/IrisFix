@@ -36,6 +36,7 @@ class PointwiseLifting (B : Type _) (Pred : Type _) where
     rel R a b → rel S a b → rel (fun x y => R x y ∧ S x y) a b
   rel_forall {R : B → B → Prop} (h : ∀ x y, R x y) (a b : Pred) : rel R a b
   rel_eq (a : Pred) : rel (· = ·) a a
+  rel_flip {R : B → B → Prop} {a b : Pred} : rel R a b → rel (fun x y => R y x) b a
   rel_map {R : B → B → Prop} {f g : B → B} {a b : Pred} :
     rel R (map f a) (map g b) ↔ rel (fun x y => R (f x) (g y)) a b
   map_id (a : Pred) : map id a = a
@@ -60,6 +61,7 @@ instance instBase {B : Type _} : PointwiseLifting B B where
   rel_and := And.intro
   rel_forall h := h
   rel_eq _ := rfl
+  rel_flip h := h
   rel_map := .rfl
   map_id _ := rfl
   map_const := rfl
@@ -75,6 +77,7 @@ instance instPi {B : Type _} {ι : Type _} {β : ι → Type _} [∀ i, Pointwis
   rel_and hR hS i := rel_and (hR i) (hS i)
   rel_forall h a b i := rel_forall h (a i) (b i)
   rel_eq a i := rel_eq (a i)
+  rel_flip h i := rel_flip (h i)
   rel_map := forall_congr' fun _ => rel_map
   map_id a := funext fun i => map_id (a i)
   map_const := funext fun _ => map_const
@@ -173,5 +176,126 @@ instance PointwiseLiftingLim.instPi {B : Type _} [COFE B] {ι : Type _} {β : ι
     PointwiseLiftingLim B (∀ i, β i) where
   all_lim h := ⟨fun c hc i => (PointwiseLiftingLim.all_lim (Pred := β i) h).compl
     (c.map (OFE.applyHom i)) fun n => hc n i⟩
+
+/-! ## Two shapes of the same arguments -/
+
+section Two
+open PointwiseLifting (rel all)
+
+
+/-- `Pred` over `B` and `Pred'` over `B'` are functions of the same arguments: relations between
+`B` and `B'` lift to them pointwise (`rel₂`), and so do functions (`map₂`) and best approximations
+of sets (`hull₂`, at each point, of the values of the functions of the set there). -/
+class PointwiseLifting₂ (B B' : Type _) (Pred Pred' : Type _) [PointwiseLifting B Pred]
+    [PointwiseLifting B' Pred'] where
+  rel₂ : (B → B' → Prop) → Pred → Pred' → Prop
+  map₂ : (B → B') → Pred → Pred'
+  hull₂ : ((B' → Prop) → B) → (Pred' → Prop) → Pred
+  rel₂_mono {R R' : B → B' → Prop} (h : ∀ b x, R b x → R' b x) {S : Pred} {g : Pred'} :
+    rel₂ R S g → rel₂ R' S g
+  rel₂_map₂ {R : B → B' → Prop} {f : B → B'} (h : ∀ b, R b (f b)) (S : Pred) : rel₂ R S (map₂ f S)
+  rel₂_comp_l {R : B → B → Prop} {Q : B → B' → Prop} {S S' : Pred} {g : Pred'} :
+    rel R S S' → rel₂ Q S' g → rel₂ (fun b x => ∃ b', R b b' ∧ Q b' x) S g
+  rel₂_rel {R R' : B → B' → Prop} {S : Pred} {g g' : Pred'} :
+    rel₂ R S g → rel₂ R' S g' → rel (fun x y => ∃ b, R b x ∧ R' b y) g g'
+  rel₂_all {P : B → Prop} {R : B → B' → Prop} {S : Pred} {g : Pred'} :
+    all P S → rel₂ R S g → rel₂ (fun b x => P b ∧ R b x) S g
+  rel₂_hull₂ {R : B → B' → Prop} {h : (B' → Prop) → B} (hh : ∀ T x, T x → R (h T) x)
+    {C : Pred' → Prop} {g : Pred'} : C g → rel₂ R (hull₂ h C) g
+  hull₂_sub {R : B → B → Prop} {h : (B' → Prop) → B}
+    (hh : ∀ T T', (∀ x, T x → T' x) → (∃ x, T x) → R (h T) (h T')) {C C' : Pred' → Prop} :
+    (∀ g, C g → C' g) → (∃ g, C g) → rel R (hull₂ h C) (hull₂ h C')
+  hull₂_eq {R : B' → B' → Prop} {h : (B' → Prop) → B} {e : B → B'}
+    (hh : ∀ T x, T x → (∀ y, T y → R y x) → e (h T) = x) {C : Pred' → Prop} {g : Pred'} :
+    C g → (∀ g', C g' → rel R g' g) → map₂ e (hull₂ h C) = g
+  all_hull₂ {P : B → Prop} {Q : B' → B' → Prop} {h : (B' → Prop) → B}
+    (hh : ∀ T, (∀ x y, T x → T y → Q x y) → (∃ x, T x) → P (h T)) {C : Pred' → Prop} :
+    (∀ g g', C g → C g' → rel Q g g') → (∃ g, C g) → all P (hull₂ h C)
+
+namespace PointwiseLifting₂
+open PointwiseLifting (rel_mono)
+
+instance instBase {B B' : Type _} : PointwiseLifting₂ B B' B B' where
+  rel₂ R := R
+  map₂ f := f
+  hull₂ h := h
+  rel₂_mono h _ _ := h _ _
+  rel₂_map₂ h _ := h _
+  rel₂_comp_l hR hQ := ⟨_, hR, hQ⟩
+  rel₂_rel hR hR' := ⟨_, hR, hR'⟩
+  rel₂_all hP hR := ⟨hP, hR⟩
+  rel₂_hull₂ hh _ _ hC := hh _ _ hC
+  hull₂_sub hh _ _ hCC' hne := hh _ _ hCC' hne
+  hull₂_eq hh _ _ hC hle := hh _ _ hC hle
+  all_hull₂ hh _ hQ hne := hh _ hQ hne
+
+instance instPi {B B' : Type _} {ι : Type _} {β β' : ι → Type _}
+    [∀ i, PointwiseLifting B (β i)] [∀ i, PointwiseLifting B' (β' i)]
+    [∀ i, PointwiseLifting₂ B B' (β i) (β' i)] :
+    PointwiseLifting₂ B B' (∀ i, β i) (∀ i, β' i) where
+  rel₂ R S g := ∀ i, rel₂ R (S i) (g i)
+  map₂ f S i := map₂ f (S i)
+  hull₂ h C i := hull₂ h fun G => ∃ g, C g ∧ g i = G
+  rel₂_mono h _ _ hS i := rel₂_mono h (hS i)
+  rel₂_map₂ h S i := rel₂_map₂ h (S i)
+  rel₂_comp_l hR hQ i := rel₂_comp_l (hR i) (hQ i)
+  rel₂_rel hR hR' i := rel₂_rel (hR i) (hR' i)
+  rel₂_all hP hR i := rel₂_all (hP i) (hR i)
+  rel₂_hull₂ hh _ g hC _ := rel₂_hull₂ hh ⟨g, hC, rfl⟩
+  hull₂_sub hh _ _ hCC' := fun ⟨g, hg⟩ i =>
+    hull₂_sub hh (fun _ ⟨g', hg', e⟩ => ⟨g', hCC' g' hg', e⟩) ⟨g i, g, hg, rfl⟩
+  hull₂_eq hh _ g hC hle := funext fun i => hull₂_eq hh ⟨g, hC, rfl⟩
+    fun _ ⟨g', hg', e⟩ => e ▸ hle g' hg' i
+  all_hull₂ hh _ hQ := fun ⟨g, hg⟩ i => all_hull₂ hh
+    (fun _ _ ⟨g₁, h₁, e₁⟩ ⟨g₂, h₂, e₂⟩ => e₁ ▸ e₂ ▸ hQ g₁ g₂ h₁ h₂ i) ⟨g i, g, hg, rfl⟩
+
+variable {B B' Pred Pred' : Type _} [PointwiseLifting B Pred] [PointwiseLifting B' Pred']
+  [PointwiseLifting₂ B B' Pred Pred']
+
+/-- `rel₂_comp_l`, on the other side of `R`. -/
+theorem rel₂_comp_r {R : B → B → Prop} {Q : B → B' → Prop} {S S' : Pred} {g : Pred'}
+    (hR : rel R S S') (hQ : rel₂ Q S g) : rel₂ (fun b' x => ∃ b, R b b' ∧ Q b x) S' g :=
+  rel₂_comp_l (PointwiseLifting.rel_flip hR) hQ
+
+/-- `hull₂_sub`, for an `h` antitone in the set. -/
+theorem hull₂_sup {R : B → B → Prop} {h : (B' → Prop) → B}
+    (hh : ∀ T T', (∀ x, T' x → T x) → (∃ x, T' x) → R (h T) (h T')) {C C' : Pred' → Prop}
+    (hCC' : ∀ g, C' g → C g) (hne : ∃ g, C' g) :
+    rel R (hull₂ (Pred := Pred) h C) (hull₂ (Pred := Pred) h C') :=
+  PointwiseLifting.rel_flip <| hull₂_sub (R := fun a b => R b a)
+    (fun T T' hTT' hne => hh T' T hTT' hne) hCC' hne
+
+end PointwiseLifting₂
+
+/-- On one shape, `rel₂` is `rel`. -/
+class PointwiseLiftingDiag (B : Type _) (Pred : Type _) [PointwiseLifting B Pred]
+    [PointwiseLifting₂ B B Pred Pred] : Prop where
+  rel₂_iff {R : B → B → Prop} {a b : Pred} : PointwiseLifting₂.rel₂ R a b ↔ rel R a b
+  map₂_id (a : Pred) : PointwiseLifting₂.map₂ (B := B) (B' := B) id a = a
+
+instance PointwiseLiftingDiag.instBase {B : Type _} : PointwiseLiftingDiag B B where
+  rel₂_iff := .rfl
+  map₂_id _ := rfl
+
+instance PointwiseLiftingDiag.instPi {B : Type _} {ι : Type _} {β : ι → Type _}
+    [∀ i, PointwiseLifting B (β i)] [∀ i, PointwiseLifting₂ B B (β i) (β i)]
+    [∀ i, PointwiseLiftingDiag B (β i)] : PointwiseLiftingDiag B (∀ i, β i) where
+  rel₂_iff := forall_congr' fun _ => PointwiseLiftingDiag.rel₂_iff
+  map₂_id a := funext fun i => PointwiseLiftingDiag.map₂_id (a i)
+
+/-- The distance of `Pred` is that of `B`, at every point. -/
+class PointwiseLiftingDist (B : Type _) (Pred : Type _) [OFE B] [OFE Pred]
+    [PointwiseLifting B Pred] : Prop where
+  dist_iff {n : Nat} {a b : Pred} : a ≡{n}≡ b ↔ rel (fun x y : B => x ≡{n}≡ y) a b
+
+instance PointwiseLiftingDist.instBase {B : Type _} [OFE B] : PointwiseLiftingDist B B where
+  dist_iff := .rfl
+
+instance PointwiseLiftingDist.instPi {B : Type _} [OFE B] {ι : Type _} {β : ι → Type _}
+    [∀ i, OFE (β i)] [∀ i, PointwiseLifting B (β i)] [∀ i, PointwiseLiftingDist B (β i)] :
+    PointwiseLiftingDist B (∀ i, β i) where
+  dist_iff := forall_congr' fun _ => PointwiseLiftingDist.dist_iff
+
+end Two
 
 end Iris

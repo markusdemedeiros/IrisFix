@@ -305,8 +305,8 @@ end ExplicitBase
 -- A body that only makes the recursive call (no BI operation) still keeps `[BI PROP]`.
 ifix loop (a : Nat) : PROP := iprop% loop a
 
-example (a : Nat) : (loop a : PROP) = loop.pre a (loop a) := loop.unfold a
-example (a : Nat) (Φ : PROP) : ⊢ □ (loop.pre a Φ -∗ Φ) -∗ loop a -∗ Φ := loop.iter a Φ
+example (a : Nat) : (loop a : PROP) = loop.pre loop a := loop.unfold a
+example (Φ : Nat → PROP) : ⊢ □ (∀ a, loop.pre Φ a -∗ Φ a) -∗ ∀ a, loop a -∗ Φ a := loop.iter Φ
 
 /-! ## Limitations and bugs -/
 
@@ -334,9 +334,12 @@ Hint: Additional diagnostic information may be available using the `set_option d
 
 -- Limitation: the same, end to end: `ifix` rejects a proof argument with one error.
 /--
-error: ifix_monotone: the order of
-  (n : Nat) → n < 5 → PROP
-is not the order of `IOrder`
+error: failed to synthesize
+  PointwiseLifting PROP ((n : Nat) → n < 5 → PROP)
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+---
+warning: unused `partial_fixpoint`, function is not recursive
 -/
 #guard_msgs in
 ifix bnd (n : Nat) (h : n < 5) : PROP :=

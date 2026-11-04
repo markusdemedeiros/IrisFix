@@ -82,6 +82,11 @@ theorem IsFix.eq_fix (h : IsFix F fn) (hF : monotone F) : fn = fix F hF :=
     (h.le_of hF (PartialOrder.rel_of_eq (fix_eq hF).symm))
     ((fix_isFix hF).le_of hF (PartialOrder.rel_of_eq h.unfold.symm))
 
+/-- A fixpoint of a body that agrees with `F'` is a fixpoint of `F'`. -/
+theorem IsFix.congr {F' : α → α} (h : IsFix F fn) (e : ∀ f, F f = F' f) : IsFix F' fn := by
+  cases funext e
+  exact h
+
 end IsFix
 
 /-! ## Indexed relations that sups preserve -/

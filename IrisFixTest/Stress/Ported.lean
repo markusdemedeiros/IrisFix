@@ -32,7 +32,7 @@ example [BI PROP] (p : PROP) : zero.pre p = p := rfl
 
 icofix unchanged [BI PROP] (x : α) : PROP := unchanged x
 
-example [BI PROP] (x : α) (Φ : PROP) : unchanged.pre x Φ = Φ := rfl
+example [BI PROP] (x : α) (Φ : α → PROP) : unchanged.pre Φ x = Φ x := rfl
 
 ifix passed [BI PROP] (x : α) : PROP :=
   let next := passed
@@ -44,8 +44,8 @@ icofix partialSwap [BI PROP] (x : α) (setting : Bool) (y : α) : PROP :=
   let next := partialSwap y setting
   next x
 
-example [BI PROP] (setting : Bool) (Φ : α → α → PROP) (x y : α) :
-    partialSwap.pre setting Φ x y = Φ y x := rfl
+example [BI PROP] (setting : Bool) (Φ : α → Bool → α → PROP) (x y : α) :
+    partialSwap.pre Φ x setting y = Φ y setting x := rfl
 
 ifix implicitSwap [BI PROP] {x y : α} : PROP := implicitSwap (x := y) (y := x)
 
@@ -141,17 +141,19 @@ icofix stream (P : PROP) : PROP := iprop% P ∗ ▷ stream P
 
 example (P : PROP) : □ P ⊢ stream iprop(□ P) := by
   iintro #HP
-  iapply (stream.coiter iprop(□ P) iprop(□ P)) $$ [] HP
-  iintro !> #H
-  unfold stream.pre
-  isplit
-  · iexact H
-  · inext; iexact H
+  iapply (stream.coiter (fun Q => iprop(∃ _ : Q = iprop(□ P), □ P))) $$ [] %iprop(□ P) [HP]
+  · iintro !> %Q ⟨%hQ, #H⟩
+    subst hQ
+    unfold stream.pre
+    isplit
+    · iexact H
+    · inext; iexists rfl; iexact H
+  · iexists rfl; iexact HP
 
-example (P Φ : PROP) : ⊢ □ (Φ -∗ stream.pre P (stream P)) -∗ Φ -∗ stream P :=
-  stream.paco P Φ (stream P) ((stream.unfold_mp P).trans or_intro_r)
+example (Φ : PROP → PROP) : ⊢ □ (∀ P, Φ P -∗ stream.pre stream P) -∗ ∀ P, Φ P -∗ stream P :=
+  stream.paco Φ stream fun P => (stream.unfold_mp P).trans or_intro_r
 
-example (P : PROP) : stream.pre P (stream P) ⊢ stream P := stream.unfold_mpr P
+example (P : PROP) : stream.pre stream P ⊢ stream P := stream.unfold_mpr P
 
 ifix nat (n : Nat) : PROP := iprop% ⌜n = 0⌝ ∨ ∃ m, ⌜n = m + 1⌝ ∗ nat m
 ifix nat' (n : Nat) : PROP := iprop% ⌜n = 0⌝ ∨ ∃ m, ⌜n = m + 1⌝ ∗ nat' m
@@ -179,11 +181,18 @@ ifix vec (n : Nat) (v : Fin n → Nat) : PROP :=
 example (Φ : (n : Nat) → (Fin n → Nat) → PROP) :
     ⊢ (□ ∀ n v, vec.pre Φ n v -∗ Φ n v) -∗ ∀ n v, vec n v -∗ Φ n v := vec.iter Φ
 
+-- Limitation: `{α}` varies (its name is not in the result type), so `[OFE α]` varies too, and there
+-- is no `ne`.
 ifix swapNe {α : Type _} [OFE α] (x y : α) : PROP := iprop% ▷ swapNe y x
+/-- error: Unknown constant `IrisTest.Stress.Ported.swapNe.ne` -/
+#guard_msgs in #check @swapNe.ne
 
-example {α : Type _} [OFE α] {n : Nat} {x x' y y' : α} (hx : x ≡{n}≡ x') (hy : y ≡{n}≡ y') :
-    swapNe (PROP := PROP) x y ≡{n}≡ swapNe x' y' :=
-  swapNe.ne (fun _ _ hf x x' hx y y' hy => later_ne.ne (hf y y' hy x x' hx)) x x' hx y y' hy
+-- `ne`, with a fixed OFE.
+ifix swapNe' [OFE α] (x y : α) : PROP := iprop% ▷ swapNe' y x
+
+example [OFE α] {n : Nat} {x x' y y' : α} (hx : x ≡{n}≡ x') (hy : y ≡{n}≡ y') :
+    swapNe' (PROP := PROP) x y ≡{n}≡ swapNe' x' y' :=
+  swapNe'.ne (fun _ _ hf x x' hx y y' hy => later_ne.ne (hf y y' hy x x' hx)) x x' hx y y' hy
 end
 
 /-! ## Default tactics and `imono` -/
@@ -195,24 +204,23 @@ elab "logged_imono" : tactic => do
   Lean.logInfo "monotone_by ran"
   Lean.Elab.Tactic.evalTactic (← `(tactic| imono))
 
--- The tactic runs twice: once for `partial_fixpoint`, once for `name.pre_mono`.
+-- The tactic runs once, for `name.pre_mono`.
 /--
-info: monotone_by ran
----
 info: monotone_by ran
 -/
 #guard_msgs in
 ifix once (n : Nat) : PROP := iprop% ⌜n = 0⌝ ∨ once (n + 1)
 monotone_by logged_imono
 
--- Rejected: the body is not monotone (`bad` left of a wand). One error, and no laws.
+-- Rejected: the body is not monotone (`bad` left of a wand). One error; the definition exists,
+-- but no laws.
 /--
 error: imono: not monotone, or not covered by an @[imono] rule
 PROP : Type u_1
 inst✝ : BI PROP
-n : Nat
-Φ✝ Ψ✝ : PROP
-⊢ ⊢ □ (Φ✝ -∗ Ψ✝) -∗ Ψ✝ -∗ Φ✝
+Φ✝ Ψ✝ : Nat → PROP
+x✝ : Nat
+⊢ ⊢ (□ ∀ n, Φ✝ n -∗ Ψ✝ n) -∗ Ψ✝ x✝ -∗ Φ✝ x✝
 -/
 #guard_msgs in
 ifix bad (n : Nat) : PROP := iprop% bad n -∗ False
@@ -294,7 +302,7 @@ variable {PROP : Type _} [BI PROP] [BILaterContractive PROP] [Inhabited PROP]
 -- A type without a COFE gives one error (the old message was "must be a COFE with a default point").
 /--
 error: failed to synthesize instance of type class
-  OFE (Nat → Nat)
+  OFE Nat
 
 Hint: Type class instance resolution failures can be inspected with the `set_option trace.Meta.synthInstance true` command.
 -/
@@ -359,8 +367,8 @@ example (n : Nat) : nc (PROP := PROP) n = nc.pre nc n := nc.unfold n
 
 iguarded withInst [Inhabited Nat] (n : Nat) : PROP := iprop% ▷ withInst (n + 1)
 contractive_by
-  intros k Φ Ψ h i n; unfold withInst.pre
-  exact Contractive.distLater_dist (fun m hm => h m hm _ _)
+  intros k Φ Ψ h n; unfold withInst.pre
+  exact Contractive.distLater_dist (fun m hm => h m hm _)
 
 example [Inhabited Nat] (n : Nat) : withInst (PROP := PROP) n = withInst.pre withInst n :=
   withInst.unfold n
@@ -375,8 +383,8 @@ example (n : Nat) : impl (PROP := PROP) (n := n) = impl.pre (fun {m} => impl (n 
 
 iguarded autoBound [OFE α] (x : α) : PROP := iprop% ▷ autoBound x
 contractive_by
-  intros k Φ Ψ h i x; unfold autoBound.pre
-  exact Contractive.distLater_dist (fun m hm => h m hm _ _)
+  intros k Φ Ψ h x; unfold autoBound.pre
+  exact Contractive.distLater_dist (fun m hm => h m hm _)
 
 example {α : Type} [OFE α] (x : α) : autoBound (PROP := PROP) x = autoBound.pre autoBound x :=
   autoBound.unfold x
@@ -397,13 +405,14 @@ iguarded hole (_ : Nat) (n : Nat) : PROP := iprop% ▷ hole 0 n
 contractive_by
   intros k Φ Ψ h i n; unfold hole.pre; exact Contractive.distLater_dist (fun m hm => h m hm _ _)
 
--- Rejected: every parameter of `iguarded` varies, so a default value has no meaning.
-/-- error: iguarded: parameters cannot have default values -/
-#guard_msgs in
+-- A default value is accepted (the laws drop it), as for `ifix`.
 iguarded withDefault (n : Nat := 3) : PROP := iprop% ▷ withDefault n
 contractive_by
   intros k Φ Ψ h n; unfold withDefault.pre
   exact Contractive.distLater_dist (fun m hm => h m hm _)
+
+example (n : Nat) : withDefault (PROP := PROP) n = withDefault.pre (@withDefault PROP _ _) n :=
+  withDefault.unfold n
 
 iguarded Foo.bar (n : Nat) : PROP := iprop% ▷ Foo.bar n
 contractive_by
@@ -432,11 +441,12 @@ end Guarded
 run_cmd do
   let pre := `IrisTest.Stress.Ported
   let decls := #[`zero, `zeroBad, `passed, `both, `partialSwap, `implicitSwap, `indexed, `psig,
-      `constant, `nonRecFn, `lifted, `even, `stream, `nat, `vec, `swapNe, `inferredSwap,
+      `constant, `nonRecFn, `lifted, `even, `stream, `nat, `vec, `swapNe, `swapNe', `inferredSwap,
       `Names.self, `Names.prot, `Names.clash, `Names.Sub.nested, `Names.localSimp,
       `Guarded.flip, `Guarded.g0, `Guarded.g2, `Guarded.dependent, `Guarded.gf, `Guarded.prot,
       `Guarded.nc, `Guarded.withInst, `Guarded.impl, `Guarded.autoBound, `Guarded.sectionInh,
-      `Guarded.hole, `Guarded.Foo.bar, `Guarded.viaProj, `Guarded.shadowed].map (pre ++ ·)
+      `Guarded.hole, `Guarded.Foo.bar, `Guarded.viaProj, `Guarded.shadowed,
+      `Guarded.withDefault].map (pre ++ ·)
   for decl in decls.push `rootedFix do
     unless (← Lean.getEnv).contains decl do throwError "missing {decl}"
     for suffix in #[Lean.Name.anonymous, `pre, `pre_mono, `pre.contractive, `unfold, `unfold_mp,

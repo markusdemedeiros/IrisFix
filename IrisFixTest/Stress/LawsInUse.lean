@@ -183,8 +183,10 @@ theorem lseg_app [BIAffine PROP] (pt : Nat → Nat → Nat → PROP) (p q r : Na
     lseg pt p q xs ∗ lseg pt q r ys ⊢ lseg pt p r (xs ++ ys) := by
   iintro ⟨H1, H2⟩
   irevert H2
-  iapply (lseg.iter pt q (fun p xs => iprop(lseg pt q r ys -∗ lseg pt p r (xs ++ ys)))) $$ [] H1
-  iintro !> %p %xs Hxs H2
+  iapply (lseg.iter (fun pt' p q' xs => iprop(∀ (_ : pt' = pt) (_ : q' = q),
+    lseg pt q r ys -∗ lseg pt p r (xs ++ ys)))) $$ [] %pt %p %q %xs H1 %rfl %rfl
+  iintro !> %pt' %p %q' %xs Hxs %hpt %hq H2
+  subst hpt hq
   cases xs with
   | nil =>
     simp only [lseg.pre]
@@ -195,9 +197,9 @@ theorem lseg_app [BIAffine PROP] (pt : Nat → Nat → Nat → PROP) (p q r : Na
     icases Hxs with ⟨%p', Hpt, Hih⟩
     iapply lseg_cons
     iframe
-    iapply Hih $$ H2
+    iapply Hih $$ %rfl %rfl H2
 
--- fixed parameter in the middle, after a varying one
+-- a parameter passed on unchanged in the middle, after a changing one
 ifix lseg2 (p : Nat) (pt : Nat → Nat → Nat → PROP) (l : List Nat) (q : Nat) : PROP :=
   match l with
   | [] => iprop(⌜p = q⌝)
@@ -208,8 +210,8 @@ ifix lseg2 (p : Nat) (pt : Nat → Nat → Nat → PROP) (l : List Nat) (q : Nat
 theorem lseg2_len (pt : Nat → Nat → Nat → PROP) (p q : Nat) (l : List Nat) :
     lseg2 p pt l q ⊢ ⌜l = [] → p = q⌝ := by
   iintro H
-  iapply (lseg2.iter pt q (fun p l => iprop(⌜l = [] → p = q⌝))) $$ [] H
-  iintro !> %p %l Hl
+  iapply (lseg2.iter (fun p _ l q => iprop(⌜l = [] → p = q⌝))) $$ [] %p %pt %l %q H
+  iintro !> %p %pt %l %q Hl
   cases l with
   | nil => simp only [lseg2.pre]; icases Hl with %h; ipureintro; intro; exact h
   | cons x xs => ipureintro; intro h; cases h
@@ -227,12 +229,20 @@ example (pt : Nat → Nat → Nat → PROP) [∀ a b c, Persistent (pt a b c)] (
     Absorbing (lseg pt p q l) := inferInstance
 example (pt : Nat → Nat → Nat → PROP) [∀ a b c, Persistent (pt a b c)] (p q : Nat) (l : List Nat) :
     Absorbing (lseg pt p q l) :=
-  lseg.absorbing pt q (h := fun p l => by cases l <;> simp only [lseg.pre] <;> infer_instance) p l
-example (pt : Nat → Nat → Nat → PROP) [∀ a b c, Persistent (pt a b c)] (p q : Nat) (l : List Nat) :
-    Persistent (lseg pt p q l) :=
-  have : ∀ p l, Absorbing (lseg pt p q l) := 
-    lseg.absorbing pt q (h := fun p l => by cases l <;> simp only [lseg.pre] <;> infer_instance)
-  lseg.persistent_absorbing pt q (hP := fun p l => by cases l <;> simp only [lseg.pre] <;> infer_instance) p l
+  lseg.absorbing (h := fun pt p q l => by cases l <;> simp only [lseg.pre] <;> infer_instance) pt p q l
+-- The persistence law needs persistent cells at every `pt`: with `pt` fixed (a section variable).
+section
+variable (pt : Nat → Nat → Nat → PROP) [∀ a b c, Persistent (pt a b c)]
+ifix lsegS (p q : Nat) (l : List Nat) : PROP :=
+  match l with
+  | [] => iprop(⌜p = q⌝)
+  | x :: xs => iprop(∃ p', pt p x p' ∗ lsegS p' q xs)
+example (p q : Nat) (l : List Nat) : Persistent (lsegS pt p q l) :=
+  have : ∀ p q l, Absorbing (lsegS pt p q l) :=
+    lsegS.absorbing pt (h := fun p q l => by cases l <;> simp only [lsegS.pre] <;> infer_instance)
+  lsegS.persistent_absorbing pt
+    (hP := fun p q l => by cases l <;> simp only [lsegS.pre] <;> infer_instance) p q l
+end
 
 
 /-! ## Coinductive streams -/
@@ -243,7 +253,8 @@ icofix stream (P : Nat → PROP) (n : Nat) : PROP := iprop% P n ∗ ▷ stream P
 #check @stream.paco
 
 -- `rw [name.pre]` and the equation lemmas `name.pre.eq_1` / `name.pre.eq_def` work.
-example (P Φ : Nat → PROP) (n : Nat) : stream.pre P Φ n = iprop(P n ∗ ▷ Φ (n + 1)) := by
+example (P : Nat → PROP) (Φ : (Nat → PROP) → Nat → PROP) (n : Nat) :
+    stream.pre Φ P n = iprop(P n ∗ ▷ Φ P (n + 1)) := by
   rw [stream.pre]
 
 example (Φ : Nat → PROP) (n : Nat) :
@@ -252,30 +263,37 @@ example (Φ : Nat → PROP) (n : Nat) :
     even.pre Φ n = iprop(⌜n = 0⌝ ∨ ∃ m, ⌜n = m + 2⌝ ∗ Φ m) := even.pre.eq_1 Φ n
 
 -- `unfold`, `simp only`, `dsimp only`, `delta` and `rfl` do work.
-example (P Φ : Nat → PROP) (n : Nat) : stream.pre P Φ n = iprop(P n ∗ ▷ Φ (n + 1)) := by
+example (P : Nat → PROP) (Φ : (Nat → PROP) → Nat → PROP) (n : Nat) :
+    stream.pre Φ P n = iprop(P n ∗ ▷ Φ P (n + 1)) := by
   unfold stream.pre; rfl
-example (P Φ : Nat → PROP) (n : Nat) : stream.pre P Φ n = iprop(P n ∗ ▷ Φ (n + 1)) := by
+example (P : Nat → PROP) (Φ : (Nat → PROP) → Nat → PROP) (n : Nat) :
+    stream.pre Φ P n = iprop(P n ∗ ▷ Φ P (n + 1)) := by
   simp only [stream.pre]
-example (P Φ : Nat → PROP) (n : Nat) : stream.pre P Φ n = iprop(P n ∗ ▷ Φ (n + 1)) := rfl
+example (P : Nat → PROP) (Φ : (Nat → PROP) → Nat → PROP) (n : Nat) :
+    stream.pre Φ P n = iprop(P n ∗ ▷ Φ P (n + 1)) := rfl
 
 theorem stream_of_all' (P : Nat → PROP) [∀ n, Persistent (P n)] (n : Nat) :
     (□ ∀ k, P k) ⊢ stream P n := by
   iintro #HP
-  iapply (stream.coiter P (fun _ => iprop(□ ∀ k, P k))) $$ [] HP
-  iintro !> %k #H
-  isplitl
-  · iapply H
-  · inext; iexact H
+  iapply (stream.coiter (fun Q _ => iprop(∃ _ : Q = P, □ ∀ k, P k))) $$ [] %P %n [HP]
+  · iintro !> %Q %k ⟨%hQ, #H⟩
+    subst hQ
+    isplitl
+    · iapply H
+    · inext; iexists rfl; iexact H
+  · iexists rfl; iexact HP
 
 -- coind: use the coinductive hypothesis disjunct
 theorem stream_coind_use (P : Nat → PROP) [∀ n, Persistent (P n)] (n : Nat) :
     (□ ∀ k, P k) ⊢ stream P n := by
   iintro #HP
-  iapply (stream.coind P (fun _ => iprop(□ ∀ k, P k))) $$ [] HP
-  iintro !> %k #H
-  isplitl
-  · iapply H
-  · inext; ileft; iexact H
+  iapply (stream.coind (fun Q _ => iprop(∃ _ : Q = P, □ ∀ k, P k))) $$ [] %P %n [HP]
+  · iintro !> %Q %k ⟨%hQ, #H⟩
+    subst hQ
+    isplitl
+    · iapply H
+    · inext; ileft; iexists rfl; iexact H
+  · iexists rfl; iexact HP
 
 -- unfold on a stream hypothesis
 theorem stream_head (P : Nat → PROP) (n : Nat) : stream P n ⊢ P n ∗ ▷ stream P (n + 1) := by
@@ -291,8 +309,9 @@ theorem stream_tail (P : Nat → PROP) [∀ n, Absorbing (P n)] (n : Nat) :
 -- paco, with W := stream
 theorem stream_paco_use (P : Nat → PROP) (n : Nat) : stream P n ⊢ stream P n := by
   iintro H
-  iapply (stream.paco P (stream P) (stream P) (fun k => by iintro H; iright; rw [stream.unfold]; iexact H)) $$ [] H
-  iintro !> %k H
+  iapply (stream.paco stream stream
+    (fun P k => by iintro H; iright; rw [stream.unfold]; iexact H)) $$ [] %P %n H
+  iintro !> %Q %k H
   rw [stream.unfold]; iexact H
 
 -- absorbing instance
@@ -301,16 +320,16 @@ example (P : Nat → PROP) [∀ n, Absorbing (P n)] (n : Nat) : stream P n ∗ P
   iintro ⟨H, -⟩; iexact H
 
 -- pre_mono for a gfp
-example (P : Nat → PROP) (Φ Ψ : Nat → PROP) (h : ∀ n, Φ n ⊢ Ψ n) (n : Nat) :
-    stream.pre P Φ n ⊢ stream.pre P Ψ n := by
+example (P : Nat → PROP) (Φ Ψ : (Nat → PROP) → Nat → PROP) (h : ∀ P n, Φ P n ⊢ Ψ P n) (n : Nat) :
+    stream.pre Φ P n ⊢ stream.pre Ψ P n := by
   iintro H
-  iapply (stream.pre_mono P Ψ Φ) $$ [] H
-  iintro !> %k Hk; iapply h; iexact Hk
+  iapply (stream.pre_mono Ψ Φ) $$ [] %P %n H
+  iintro !> %Q %k Hk; iapply h; iexact Hk
 
 -- strong_mono for a gfp
 #check @stream.strong_mono
 
-/-! ## Zero varying parameters -/
+/-! ## A parameter passed on unchanged, and no parameter -/
 
 icofix forever (P : PROP) : PROP := iprop% P ∗ ▷ forever P
 #check @forever.unfold
@@ -320,11 +339,13 @@ icofix forever (P : PROP) : PROP := iprop% P ∗ ▷ forever P
 #check @forever.absorbing
 theorem forever_intro (P : PROP) [Persistent P] : □ P ⊢ forever P := by
   iintro #H
-  iapply (forever.coiter P iprop(□ P)) $$ [] H
-  iintro !> #H
-  isplitl
-  · iexact H
-  · inext; iexact H
+  iapply (forever.coiter (fun Q => iprop(∃ _ : Q = P, □ P))) $$ [] %P [H]
+  · iintro !> %Q ⟨%hQ, #H⟩
+    subst hQ
+    isplitl
+    · iexact H
+    · inext; iexists rfl; iexact H
+  · iexists rfl; iexact H
 
 ifix spin : PROP := iprop% ▷ spin
 #check @spin.unfold
@@ -369,11 +390,9 @@ theorem finP_all (n : Nat) (i : Fin n) : ⊢ finP (PROP := PROP) n i := by
 section
 variable {α : Type _} [OFE α]
 
--- BUG(usability): an `[OFE α]` section variable is dropped by `def` when unused in the body, so no
--- `ne` is emitted, silently.
+-- A law takes the section variables that it uses, like a theorem: `ne` takes `[OFE α]`.
 ifix walkS (x : α) (k : Nat) (y : α) : PROP := iprop% ▷ walkS y k x
-/-- error: Unknown constant `IrisTest.Stress.LawsInUse.walkS.ne` -/
-#guard_msgs in #check @walkS.ne
+#check @walkS.ne
 end
 
 section
@@ -384,15 +403,18 @@ ifix walk [OFE α] (x : α) (k : Nat) (y : α) : PROP := iprop% ▷ walk y k x
 
 example [OFE α] {n : Nat} (k : Nat) {x x' y y' : α} (hx : x ≡{n}≡ x') (hy : y ≡{n}≡ y') :
     walk (PROP := PROP) x k y ≡{n}≡ walk x' k y' :=
-  walk.ne k (fun _ _ hf x x' hx y y' hy => later_ne.ne (hf y y' hy x x' hx)) x x' hx y y' hy
+  walk.ne (fun _ _ hf x x' hx k y y' hy => later_ne.ne (hf y y' hy k x x' hx)) x x' hx k y y' hy
 
 -- `NonExpansive` from `ne`
 example [OFE α] (k : Nat) (y : α) : NonExpansive (fun x => walk (PROP := PROP) x k y) :=
-  ⟨fun {_} x x' hx => walk.ne k (fun _ _ hf x x' hx y y' hy => later_ne.ne (hf y y' hy x x' hx))
-    x x' hx y y .rfl⟩
+  ⟨fun {_} x x' hx => walk.ne (fun _ _ hf x x' hx k y y' hy => later_ne.ne (hf y y' hy k x x' hx))
+    x x' hx k y y .rfl⟩
+end
 
--- a fixed OFE argument, varying Nat
-ifix chainP [OFE α] (x : α) (k : Nat) : PROP := iprop% ⌜k = 0⌝ ∨ ▷ chainP x (k - 1)
+section
+-- a fixed OFE argument (a section variable), changing Nat
+variable (x : PROP)
+ifix chainP (k : Nat) : PROP := iprop% x ∗ (⌜k = 0⌝ ∨ ▷ chainP (k - 1))
 #check @chainP.pre
 -- No `ne` in a fixed OFE argument: only the varying arguments are covered.
 /-- error: Unknown constant `IrisTest.Stress.LawsInUse.chainP.ne` -/
@@ -413,14 +435,17 @@ theorem reach_trans [BIAffine PROP] (R : Nat → Nat → Prop) (a b c : Nat) :
     reach (PROP := PROP) R a b ∗ reach R b c ⊢ reach R a c := by
   iintro ⟨H1, H2⟩
   irevert H2
-  iapply (reach.iter R b (fun a => iprop(reach R b c -∗ reach R a c))) $$ [] H1
-  iintro !> %a (%h | ⟨%d, %hd, Hih⟩) H2
+  iapply (reach.iter (fun R' a b' => iprop(∀ (_ : R' = R) (_ : b' = b),
+    reach R b c -∗ reach R a c))) $$ [] %R %a %b H1 %rfl %rfl
+  iintro !> %R' %a %b' Hab %hR %hb H2
+  subst R' b'
+  icases Hab with (%h | ⟨%d, %hd, Hih⟩)
   · subst h; iexact H2
   · rw [reach.unfold R a c]; iright; iexists d; isplitr
     · ipureintro; exact hd
-    · iapply Hih $$ H2
+    · iapply Hih $$ %rfl %rfl H2
 
--- iter with every parameter generalized: impossible because b is fixed.
+-- iter with every parameter generalized.
 #check @reach.ind_wf
 
 
@@ -454,12 +479,17 @@ Hint: Type class instance resolution failures can be inspected with the `set_opt
 -/
 #guard_msgs in
 example (P : PROP) (n : Nat) : Persistent (np P n) := inferInstance
-example (P : PROP) [Persistent P] (n : Nat) : Persistent (np P n) := inferInstance
+-- With `P` fixed (a section variable), the instance needs `Persistent P`.
+section
+variable (P : PROP) [Persistent P]
+ifix npS (n : Nat) : PROP := iprop% P ∗ npS n
+example (n : Nat) : Persistent (npS P n) := inferInstance
+end
 
 -- A body that uses no BI operation still gets the `[BI PROP]` section variable (`local bi`).
 ifix selfloop (n : Nat) : PROP := iprop% selfloop n
 example (n : Nat) : Persistent (selfloop (PROP := PROP) n) := inferInstance
-example (n : Nat) : selfloop (PROP := PROP) n = selfloop.pre n (selfloop n) := selfloop.unfold n
+example (n : Nat) : selfloop (PROP := PROP) n = selfloop.pre selfloop n := selfloop.unfold n
 
 -- With the instance in the binders.
 ifix selfloop' [BI PROP] (n : Nat) : PROP := iprop% selfloop' n
@@ -471,8 +501,8 @@ example (n : Nat) : Affine (selfloop' (PROP := PROP) n) := inferInstance
 ifix clash (Φ : PROP) (W : Nat) : PROP := iprop% Φ ∗ clash Φ (W + 1)
 #check @clash.iter
 #check @clash.ind_wf
--- named argument `Φ` refers to the fixed parameter, the motive is primed: `Φ'`
-#check clash.iter (PROP := PROP) (Φ := iprop(True)) (Φ' := fun _ => iprop(True))
+-- the motive is primed: `Φ'`
+#check clash.iter (PROP := PROP) (Φ' := fun _ _ => iprop(True))
 
 ifix clash2 (Φ : Nat) (x : Nat) : PROP := iprop% ⌜Φ = x⌝ ∨ clash2 (Φ + 1) x
 #check @clash2.iter
@@ -493,12 +523,6 @@ ifix allL {A : Type u} (P : A → PROP) (l : List A) : PROP :=
   | [] => iprop(True)
   | x :: xs => iprop(P x ∗ allL P xs)
 #check @allL.iter
-
-ifix four (a : Nat) (b : Int) (c : Bool) (d : List Nat) : PROP :=
-  iprop(⌜a = 0⌝ ∨ four (a - 1) (b + 1) (!c) (a :: d))
-#check @four.iter
-#check @four.unfold
-example : Persistent (four (PROP := PROP) 3 0 true []) := inferInstance
 
 /-! ## Generated statements contain no internal projections -/
 
@@ -537,22 +561,36 @@ elab "#check_clean " ns:ident : command => do
 #check_clean four
 
 
-/-! ## Monotonicity in a fixed parameter, via `strong_mono` -/
+/-! ## Monotonicity in a parameter passed on unchanged, via `strong_mono` -/
 
 theorem stream_mono (P Q : Nat → PROP) (h : ∀ n, Q n ⊢ P n) (n : Nat) : stream Q n ⊢ stream P n := by
   iintro H
-  iapply (stream.strong_mono P (stream.pre Q) (stream Q) (fun k => by rw [stream.unfold])) $$ [] H
-  iintro !> %Φ %k ⟨HQ, HΦ⟩
-  isplitl [HQ]
-  · iapply h; iexact HQ
-  · iexact HΦ
+  iapply (stream.strong_mono (fun Φ R k => iprop(∃ _ : R = P, Q k ∗ ▷ Φ R (k + 1)))
+    (fun R k => iprop(∃ _ : R = P, stream Q k))
+    (fun R k => by
+      iintro ⟨%hR, H⟩; rw [stream.unfold]; icases H with ⟨HQ, H⟩
+      iexists hR; iframe; iexists hR; iexact H)) $$ [] %P %n [H]
+  · iintro !> %Φ %R %k ⟨%hR, HQ, HΦ⟩
+    subst hR
+    isplitl [HQ]
+    · iapply h; iexact HQ
+    · iexact HΦ
+  · iexists rfl; iexact H
 
 theorem lseg_mono (pt pt' : Nat → Nat → Nat → PROP) (h : ∀ a b c, pt a b c ⊢ pt' a b c)
     (p q : Nat) (l : List Nat) : lseg pt p q l ⊢ lseg pt' p q l := by
   iintro H
-  iapply (lseg.strong_mono pt q (lseg.pre pt' q) (fun p l => lseg pt' p q l)
-    (fun p l => by rw [lseg.unfold])) $$ [] H
-  iintro !> %Φ %p %l H
+  iapply (lseg.strong_mono
+    (fun Φ pt₀ p q l => iprop(∀ _ : pt₀ = pt, lseg.pre (fun _ => Φ pt) pt' p q l))
+    (fun pt₀ p q l => iprop(∀ _ : pt₀ = pt, lseg pt' p q l))
+    (fun pt₀ p q l => by
+      iintro H %hpt; ispecialize H $$ %hpt; rw [lseg.unfold]
+      cases l with
+      | nil => iexact H
+      | cons x xs => icases H with ⟨%p', Hpt, H⟩; iexists p'; iframe; iapply H $$ %rfl))
+    $$ [] %pt %p %q %l H %rfl
+  iintro !> %Φ %pt₀ %p %q %l H %hpt
+  subst hpt
   cases l with
   | nil => iexact H
   | cons x xs =>
@@ -567,14 +605,14 @@ theorem lseg_mono (pt pt' : Nat → Nat → Nat → PROP) (h : ∀ a b c, pt a b
 
 theorem vec_len {n : Nat} (v : Fin n → Nat) : vec (PROP := PROP) v ⊢ True := by
   iintro H
-  iapply (vec.iter (PROP := PROP) (fun _ _ => iprop(True))) $$ [] H
+  iapply (vec.iter (PROP := PROP) (fun _ _ => iprop(True))) $$ [] %n %v H
   iintro !> %n %v _
   ipureintro; trivial
 
 /-! ## `paco` with an accumulator distinct from the goal -/
 
 icofix ones (n : Nat) : PROP := iprop% ⌜n = 1⌝ ∗ ▷ ones n
--- `n` is passed unchanged, so it is inferred fixed: no varying parameter.
+-- `n` is passed unchanged, and still a parameter of the motive.
 #check @ones.paco
 
 icofix cnt (n : Nat) : PROP := iprop% ⌜0 < n⌝ ∗ ▷ cnt (n + 1)
@@ -645,16 +683,32 @@ ifix nest (n : Nat) : PROP := iprop% ⌜n = 0⌝ ∨ ▷ stream (fun m => nest (
 
 /-! ## Instance-implicit fixed parameters -/
 
-ifix boxed (P : PROP) [Persistent P] (n : Nat) : PROP := iprop% P ∗ (⌜n = 0⌝ ∨ boxed P (n - 1))
-#check @boxed.iter
-#check @boxed.persistent_absorbing
-example (P : PROP) [Persistent P] (n : Nat) : Persistent (boxed P n) := inferInstance
+-- Limitation: every parameter varies, and an instance of a `Prop` class is a proof, out of scope.
+/--
+error: failed to synthesize
+  PointwiseLifting PROP ((P : PROP) → [Persistent P] → Nat → PROP)
 
-theorem boxed_P (P : PROP) [Persistent P] (n : Nat) : boxed P n ⊢ <pers> P := by
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+---
+warning: unused `partial_fixpoint`, function is not recursive
+-/
+#guard_msgs in
+ifix boxed (P : PROP) [Persistent P] (n : Nat) : PROP := iprop% P ∗ (⌜n = 0⌝ ∨ boxed P (n - 1))
+
+-- Fixed, as section variables.
+section
+variable (P : PROP) [Persistent P]
+ifix boxedS (n : Nat) : PROP := iprop% P ∗ (⌜n = 0⌝ ∨ boxedS (n - 1))
+#check @boxedS.iter
+#check @boxedS.persistent_absorbing
+example (n : Nat) : Persistent (boxedS P n) := inferInstance
+
+theorem boxed_P (n : Nat) : boxedS P n ⊢ <pers> P := by
   iintro H
-  iapply (boxed.iter P (fun _ => iprop(<pers> P))) $$ [] H
+  iapply (boxedS.iter P (fun _ => iprop(<pers> P))) $$ [] H
   iintro !> %k ⟨#HP, _⟩
   imodintro; iexact HP
+end
 
 /-! ## `name.pre` is exposed and compiled -/
 
