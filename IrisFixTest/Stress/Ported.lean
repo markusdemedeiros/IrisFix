@@ -195,8 +195,12 @@ elab "logged_imono" : tactic => do
   Lean.logInfo "monotone_by ran"
   Lean.Elab.Tactic.evalTactic (← `(tactic| imono))
 
--- Improvement over the old design: the tactic runs once (the old ran it twice).
-/-- info: monotone_by ran -/
+-- The tactic runs twice: once for `partial_fixpoint`, once for `name.pre_mono`.
+/--
+info: monotone_by ran
+---
+info: monotone_by ran
+-/
 #guard_msgs in
 ifix once (n : Nat) : PROP := iprop% ⌜n = 0⌝ ∨ once (n + 1)
 monotone_by logged_imono

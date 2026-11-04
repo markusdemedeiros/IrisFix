@@ -268,7 +268,8 @@ is not the order of `IOrder`
 icofix coHi (n : Nat) : PROP := iprop% ▷ coHi (n + 1)
 end
 
--- No generated statement mentions the order classes or the scoped instances.
+-- No generated statement mentions the order classes or the scoped instances (except Lean's own
+-- `fixpoint_induct`).
 open Lean in
 /-- info: [] -/
 #guard_msgs in
@@ -277,10 +278,10 @@ open Lean in
   let mut bad : Array Name := #[]
   for (n, ci) in env.constants.map₂.toList do
     unless (`IrisTest.Stress.Context).isPrefixOf n do continue
-    if n.isInternal then continue
+    if n.isInternal || n.getString! == "fixpoint_induct" then continue
     if ci.type.getUsedConstants.any fun c =>
       [`Iris.MonotoneFixpoint, `Iris.CoMonotoneFixpoint, `Lean.Order, `Iris.IOrder,
-        `Iris.IMeet, `Iris.INe, `Iris.PointwiseLifting, `Iris.IPointwiseLifting].any
+        `Iris.INe, `Iris.PointwiseLifting, `Iris.IPointwiseLifting].any
         (·.isPrefixOf c) then bad := bad.push n
   logInfo m!"{bad}"
 

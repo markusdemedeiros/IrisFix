@@ -13,25 +13,21 @@ import all Init.Internal.Order.Basic
 /-! # Iris fixpoints
 
 `partial_fixpoint` takes fixpoints in a CCPO `Pred`. Here `Pred` is a family of propositions
-(`PROP`, `A → PROP`, …), and each class below lifts one notion from `PROP` to `Pred`, a point at a
-time:
-
-* `IOrder PROP Pred`: `a ⊑ᵢ b`, the order of `Pred`, inside the BI. For induction.
-* `IMeet PROP Pred`: `a ⊓ᵢ b`, the binary meet of `Pred`. For strong induction.
-* `INe Pred` (in `IrisFix.Std.Order`): `ne n`, agreement up to `n`, jointly in the arguments that
-  have OFEs.
+(`PROP`, `A → PROP`, …), a `PointwiseLifting` of `PROP` (`IrisFix.Std.PointwiseLifting`).
 
 Entailment (`MonotoneFixpoint`) and reverse entailment (`CoMonotoneFixpoint`) make `PROP` a CCPO,
-so `partial_fixpoint` defines least and greatest fixpoints. `PROP` is an instance of every class,
-for `-∗` and `∧` (`MonotoneFixpoint`) and for the reverse `-∗` and `∨` (`CoMonotoneFixpoint`). A
-law for the least fixpoint, in the reverse order, is the law for the greatest fixpoint.
+so `partial_fixpoint` defines least and greatest fixpoints. `IOrder PROP` is the order of that CCPO
+inside the BI, with its binary meet: `-∗` and `∧`, or the reverse `-∗` and `∨`. A law for the least
+fixpoint, in the reverse order, is the law for the greatest fixpoint.
 
-Every other instance is the `PROP` instance, lifted through the arguments of `Pred` by a
-`PointwiseLifting` (`IrisFix.Std.PointwiseLifting`): `meet` by `zip`, and `⊑ᵢ` by
-`IPointwiseLifting.irel`, which quantifies with the BI's `∀`. The instance laws use the lifting
-directly: `all C a` for `C` at every point, and `map m a` for `m` at every point. `INe` follows
-the same pattern by its own `Pi` instances: it has no `PROP` to name the base of the lifting. All
-the operations unfold, at concrete instances, to the plain curried statements. -/
+Every structure on `Pred` is a structure on `PROP`, at every point: `a ⊑ᵢ b` is `IOrder.le`
+lifted by `IPointwiseLifting.irel`, which quantifies with the BI's `∀`; `a ⊓ᵢ b` is `IOrder.meet`
+lifted by `zip`; `all C a` is `C` at every point, and `map m a` is `m` at every point. `INe`, agreement
+up to `n` in the arguments that have OFEs, lifts by its own `Pi` instances. All of them unfold, at
+concrete instances, to the plain curried statements.
+
+The laws hold at any fixpoint `IsFix F fn`, such as a `partial_fixpoint`, by its induction
+principle and its unfolding. -/
 
 @[expose] public section
 
@@ -40,42 +36,11 @@ open BI Lean.Order
 
 local bi PROP
 
-/-! ## Embedding classes
-The classes in this section represent different ways that `PROP` lifts to `Pred`.
-The canonical example to keep in mind is families of propositions `Pred := A → PROP`: the classes
-here outline how different aspects of `PROP` may lift to families of propositions.-/
-
-/-- The order `le` embeds into `PROP` as an Iris proposition. -/
-class IOrder (PROP : Type _) [BI PROP] (Pred : Type _) [CCPO Pred] where
-  le : Pred → Pred → PROP
-  rel_iff {a b : Pred} : a ⊑ b ↔ ⊢ le a b
-  trans {a b c : Pred} : ⊢ le a b -∗ le b c -∗ le a c
-  csup_le {c : Pred → Prop} (hc : chain c) {R : PROP} {g : Pred} :
-    (∀ f, c f → R ⊢ le f g) → R ⊢ le (CCPO.csup hc) g
-
-/-- The order of `Pred`, inside the BI `bi%`. -/
-macro:50 a:term:51 " ⊑ᵢ " b:term:51 : term => ``(IOrder.le (PROP := bi%) $a $b)
-
-/-- The binary meet `Pred` is compatible with an embedding of a CCPO into Iris. -/
-class IMeet (PROP : Type _) [BI PROP] (Pred : Type _) [CCPO Pred] [IOrder PROP Pred] where
-  meet : Pred → Pred → Pred
-  meet_l {a b : Pred} : meet a b ⊑ a
-  meet_r {a b : Pred} : meet a b ⊑ b
-  meet_intro {a b c : Pred} :
-    ⊢ IOrder.le (PROP := PROP) a b ∧ IOrder.le a c -∗ IOrder.le a (meet b c)
-
-/-- The binary meet of `Pred`, for the BI `bi%`. -/
-macro:69 a:term:70 " ⊓ᵢ " b:term:70 : term => ``(IMeet.meet (PROP := bi%) $a $b)
-
-open IOrder IMeet INe
-
-/-! ## Functions, pointwise -/
+/-! ## Pointwise relations into the BI -/
 
 section Pi
 variable {PROP : Type _} [BI PROP] {ι : Type _} {β : ι → Type _}
-open PointwiseLifting (rel rel_mono rel_and rel_forall rel_map rel_diag rel_zip_l rel_zip_r map_id
-  zip)
-open PointwiseLiftingLe (le_iff)
+open PointwiseLifting (rel zip)
 
 /-- Relations into `PROP` lift to `Pred`, with the BI's `∀` over the points. -/
 class IPointwiseLifting (PROP : Type _) [BI PROP] [CCPO PROP] (Pred : Type _) [CCPO Pred]
@@ -127,28 +92,29 @@ instance IPointwiseLifting.instPi [CCPO PROP] [∀ x, CCPO (β x)]
     rw [← fun_csup_eq]
     exact irel_csup hR _ fun v ⟨f, hf, hv⟩ => hv ▸ (hall f hf).trans (forall_elim x)
 
-/-- The order of a pointwise lifting: the order of `PROP`, at every point. -/
-instance (priority := low) IOrder.ofLifting [CCPO PROP] [IOrder PROP PROP] {Pred : Type _}
-    [CCPO Pred] [PointwiseLifting PROP Pred] [PointwiseLiftingLe PROP Pred]
-    [IPointwiseLifting PROP Pred] : IOrder PROP Pred where
-  le := irel (IOrder.le (PROP := PROP) (Pred := PROP))
-  rel_iff := by
-    intro a b
-    rw [le_iff (B := PROP), irel_valid]
-    exact ⟨rel_mono fun _ _ => rel_iff.1, rel_mono fun _ _ => rel_iff.2⟩
-  trans := irel_trans (R := le) (S := le) (T := le) fun _ _ _ => trans
-  csup_le := irel_csup fun hc => csup_le hc
-
-/-- The meet of a pointwise lifting: the meet of `PROP`, at every point. -/
-instance (priority := low) IMeet.ofLifting [CCPO PROP] [IOrder PROP PROP] [IMeet PROP PROP]
-    {Pred : Type _} [CCPO Pred] [PointwiseLifting PROP Pred] [PointwiseLiftingLe PROP Pred]
-    [IPointwiseLifting PROP Pred] : IMeet PROP Pred where
-  meet := zip (IMeet.meet (PROP := PROP) (Pred := PROP))
-  meet_l := (le_iff (B := PROP)).2 (rel_zip_l (fun _ _ => meet_l) _ _)
-  meet_r := (le_iff (B := PROP)).2 (rel_zip_r (fun _ _ => meet_r) _ _)
-  meet_intro := irel_zip (R := le) (S := le) (T := le) (f := meet PROP) fun _ _ _ => meet_intro
-
 end Pi
+
+/-! ## The order of `PROP`, inside the BI -/
+
+/-- The order of the CCPO `PROP`, inside the BI, and its binary meet. -/
+class IOrder (PROP : Type _) [BI PROP] [CCPO PROP] where
+  le : PROP → PROP → PROP
+  meet : PROP → PROP → PROP
+  rel_iff {P Q : PROP} : P ⊑ Q ↔ ⊢ le P Q
+  trans {P Q R : PROP} : ⊢ le P Q -∗ le Q R -∗ le P R
+  csup_le {c : PROP → Prop} (hc : chain c) {R Q : PROP} :
+    (∀ P, c P → R ⊢ le P Q) → R ⊢ le (CCPO.csup hc) Q
+  meet_l {P Q : PROP} : meet P Q ⊑ P
+  meet_r {P Q : PROP} : meet P Q ⊑ Q
+  meet_intro {P Q R : PROP} : ⊢ le P Q ∧ le P R -∗ le P (meet Q R)
+
+/-- The order of `Pred`, inside the BI `bi%`: `IOrder.le` at every point. -/
+macro:50 a:term:51 " ⊑ᵢ " b:term:51 : term =>
+  ``(IPointwiseLifting.irel (PROP := bi%) IOrder.le $a $b)
+
+/-- The binary meet of `Pred`, for the BI `bi%`: `IOrder.meet` at every point. -/
+macro:69 a:term:70 " ⊓ᵢ " b:term:70 : term =>
+  ``(PointwiseLifting.zip (B := bi%) IOrder.meet $a $b)
 
 /-! ## `PROP`, in both orders -/
 
@@ -167,8 +133,9 @@ theorem sExists_is_sup (c : PROP → Prop) : is_sup c (sExists c) :=
 scoped instance instCCPOMonoProp : CCPO PROP where
   has_csup {c} _ := ⟨_, sExists_is_sup c⟩
 
-scoped instance instIOrderMonoProp : IOrder PROP PROP where
+scoped instance instIOrderMonoProp : IOrder PROP where
   le P Q := iprop(P -∗ Q)
+  meet P Q := iprop(P ∧ Q)
   rel_iff := ⟨entails_wand, wand_entails⟩
   trans := by
     intro P Q R
@@ -177,14 +144,10 @@ scoped instance instIOrderMonoProp : IOrder PROP PROP where
     iapply HPQ $$ HP
   csup_le hc := fun hall => wand_intro <| sep_symm.trans <| wand_elim <|
     ((CCPO.csup_spec hc _).2 fun f hf => wand_intro <| sep_symm.trans <| wand_elim (hall f hf) :)
-
-scoped instance instIMeetMonoProp : IMeet PROP PROP where
-  meet P Q := iprop(P ∧ Q)
   meet_l := and_elim_l
   meet_r := and_elim_r
   meet_intro := by
     intro P Q R
-    dsimp only [IOrder.le]
     iintro H HP
     isplit
     · icases H with ⟨H, -⟩; iapply H $$ HP
@@ -214,8 +177,9 @@ theorem sForall_is_sup (c : PROP → Prop) : is_sup c (sForall c) :=
 scoped instance instCCPOAntiProp : CCPO PROP where
   has_csup {c} _ := ⟨_, sForall_is_sup c⟩
 
-scoped instance instIOrderAntiProp : IOrder PROP PROP where
+scoped instance instIOrderAntiProp : IOrder PROP where
   le P Q := iprop(Q -∗ P)
+  meet P Q := iprop(P ∨ Q)
   rel_iff := ⟨entails_wand, wand_entails⟩
   trans := by
     intro P Q R
@@ -224,14 +188,10 @@ scoped instance instIOrderAntiProp : IOrder PROP PROP where
     iapply HRQ $$ HR
   csup_le hc := fun hall => wand_intro <|
     ((CCPO.csup_spec hc _).2 fun f hf => wand_elim (hall f hf) :)
-
-scoped instance instIMeetAntiProp : IMeet PROP PROP where
-  meet P Q := iprop(P ∨ Q)
   meet_l := or_intro_l
   meet_r := or_intro_r
   meet_intro := by
     intro P Q R
-    dsimp only [IOrder.le]
     iintro H (HP | HP)
     · icases H with ⟨H, -⟩; iapply H $$ HP
     · icases H with ⟨-, H⟩; iapply H $$ HP
@@ -248,92 +208,122 @@ end CoMonotoneFixpoint
 /-! ## The laws -/
 
 namespace IOrder
+open PointwiseLifting (rel_mono rel_zip_l rel_zip_r)
+open PointwiseLiftingLe (le_iff)
+open IPointwiseLifting (irel_valid irel_trans irel_zip irel_csup)
 
 section Laws
-variable {PROP : Type _} [BI PROP] {Pred : Type _} [CCPO Pred] [IOrder PROP Pred]
+variable {PROP : Type _} [BI PROP] [CCPO PROP] [IOrder PROP] {Pred : Type _} [CCPO Pred]
+  [PointwiseLifting PROP Pred] [IPointwiseLifting PROP Pred]
 
+variable (PROP) in
 /-- `F` is monotone inside the BI. -/
-def IMono (PROP : Type _) [BI PROP] [IOrder PROP Pred] (F : Pred → Pred) : Prop :=
-  ∀ Φ Ψ : Pred, ⊢ □ (Φ ⊑ᵢ Ψ) -∗ F Φ ⊑ᵢ F Ψ
+def IMono (F : Pred → Pred) : Prop := ∀ Φ Ψ : Pred, ⊢ □ (Φ ⊑ᵢ Ψ) -∗ F Φ ⊑ᵢ F Ψ
+
+/-! ### `⊑ᵢ` and `⊓ᵢ`, at every point -/
+
+theorem ile_trans {a b c : Pred} : ⊢ a ⊑ᵢ b -∗ b ⊑ᵢ c -∗ a ⊑ᵢ c :=
+  irel_trans (R := le) (S := le) (T := le) fun _ _ _ => trans
+
+theorem ile_csup {c : Pred → Prop} (hc : chain c) {R : PROP} {g : Pred} :
+    (∀ f, c f → R ⊢ f ⊑ᵢ g) → R ⊢ CCPO.csup hc ⊑ᵢ g :=
+  irel_csup (R := le) (fun hc => csup_le hc) hc
+
+theorem imeet_intro {a b c : Pred} : ⊢ a ⊑ᵢ b ∧ a ⊑ᵢ c -∗ a ⊑ᵢ (b ⊓ᵢ c) :=
+  irel_zip (R := le) (S := le) (T := le) (f := meet) fun _ _ _ => meet_intro
+
+variable [PointwiseLiftingLe PROP Pred]
+
+theorem ile_iff {a b : Pred} : a ⊑ b ↔ ⊢ a ⊑ᵢ b := by
+  rw [le_iff (B := PROP), irel_valid]
+  exact ⟨rel_mono fun _ _ => rel_iff.1, rel_mono fun _ _ => rel_iff.2⟩
+
+omit [IPointwiseLifting PROP Pred] in
+theorem imeet_l {a b : Pred} : a ⊓ᵢ b ⊑ a :=
+  (le_iff (B := PROP)).2 (rel_zip_l (fun _ _ => meet_l) _ _)
+
+omit [IPointwiseLifting PROP Pred] in
+theorem imeet_r {a b : Pred} : a ⊓ᵢ b ⊑ b :=
+  (le_iff (B := PROP)).2 (rel_zip_r (fun _ _ => meet_r) _ _)
+
+/-! ### Induction -/
 
 variable {F : Pred → Pred}
 
 theorem monotone_of_imono (hF : IMono PROP F) : monotone F := fun Φ Ψ hΦΨ =>
-    (rel_iff (PROP := PROP)).2 <| by
+    (ile_iff (PROP := PROP)).2 <| by
   iapply hF Φ Ψ
   iintro !>
-  iapply rel_iff.1 hΦΨ
+  iapply ile_iff.1 hΦΨ
 
+variable {fn : Pred} (hfix : IsFix F fn) (hF : IMono PROP F)
+include hfix hF
+
+omit [PointwiseLiftingLe PROP Pred] in
 /-- Iris induction, in the order `⊑ᵢ`. -/
-theorem fix_iter (hF : IMono PROP F) (Φ : Pred) :
-    ⊢ □ (F Φ ⊑ᵢ Φ) -∗ fix F (monotone_of_imono hF) ⊑ᵢ Φ :=
-  entails_wand <| fix_induct _ (fun f => iprop(□ (F Φ ⊑ᵢ Φ)) ⊢ f ⊑ᵢ Φ)
-    (fun _ hc => csup_le hc) fun f ih => by
+theorem _root_.Iris.IsFix.iter (Φ : Pred) : ⊢ □ (F Φ ⊑ᵢ Φ) -∗ fn ⊑ᵢ Φ :=
+  entails_wand <| hfix.induct (fun f => iprop(□ (F Φ ⊑ᵢ Φ)) ⊢ f ⊑ᵢ Φ)
+    (fun _ hc => ile_csup hc) fun f ih => by
   iintro #H
-  iapply trans (b := F Φ) $$ [] H
+  iapply ile_trans (b := F Φ) $$ [] H
   iapply hF f Φ
   iintro !>
   iapply ih $$ H
 
 /-- The fixpoint is below every prefixpoint `g` of a larger body `G`. -/
-theorem fix_strong_mono (hF : IMono PROP F) (G : Pred → Pred) (g : Pred) (hg : G g ⊑ g) :
-    ⊢ □ (∀ Φ, F Φ ⊑ᵢ G Φ) -∗ fix F (monotone_of_imono hF) ⊑ᵢ g := by
+theorem _root_.Iris.IsFix.strong_mono (G : Pred → Pred) (g : Pred) (hg : G g ⊑ g) :
+    ⊢ □ (∀ Φ, F Φ ⊑ᵢ G Φ) -∗ fn ⊑ᵢ g := by
   iintro #H
-  iapply fix_iter hF
+  iapply hfix.iter hF
   iintro !>
-  iapply trans (b := G g) $$ [] []
+  iapply ile_trans (b := G g) $$ [] []
   · iapply H
-  · iapply rel_iff.1 hg
+  · iapply ile_iff.1 hg
 
-variable [IMeet PROP Pred]
-
-/-- Strong induction: the hypothesis also gets the fixpoint, through `meet`. -/
-theorem fix_ind (hF : IMono PROP F) (Φ : Pred) :
-    ⊢ □ (F (Φ ⊓ᵢ fix F (monotone_of_imono hF)) ⊑ᵢ Φ) -∗ fix F (monotone_of_imono hF) ⊑ᵢ Φ := by
-  have hfix := monotone_of_imono hF
+/-- Strong induction: the hypothesis also gets the fixpoint, through `⊓ᵢ`. -/
+theorem _root_.Iris.IsFix.ind (Φ : Pred) : ⊢ □ (F (Φ ⊓ᵢ fn) ⊑ᵢ Φ) -∗ fn ⊑ᵢ Φ := by
   iintro #H
-  iapply trans (b := Φ ⊓ᵢ fix F hfix) $$ [] []
-  · iapply fix_iter hF
+  iapply ile_trans (b := Φ ⊓ᵢ fn) $$ [] []
+  · iapply hfix.iter hF
     iintro !>
-    iapply meet_intro
+    iapply imeet_intro
     isplit
     · iexact H
-    -- `meet Φ (fix F)` is below `fix F`, so `F` of it is below `F (fix F) = fix F`.
-    · iapply trans (b := F (fix F hfix)) $$ [] []
-      · iapply hF (Φ ⊓ᵢ fix F hfix) (fix F hfix)
+    -- `Φ ⊓ᵢ fn` is below `fn`, so `F` of it is below `F fn = fn`.
+    · iapply ile_trans (b := F fn) $$ [] []
+      · iapply hF (Φ ⊓ᵢ fn) fn
         iintro !>
-        iapply rel_iff.1 meet_r
-      · iapply rel_iff.1 (PartialOrder.rel_of_eq (fix_eq hfix).symm)
-  · iapply rel_iff.1 meet_l
+        iapply ile_iff.1 imeet_r
+      · iapply ile_iff.1 (PartialOrder.rel_of_eq hfix.unfold.symm)
+  · iapply ile_iff.1 imeet_l
 
-/-- Well-founded induction, for `W` above `meet Φ (F W)`. In the reverse order, this is
+/-- Well-founded induction, for `W` above `Φ ⊓ᵢ F W`. In the reverse order, this is
 parameterized coinduction. -/
-theorem fix_ind_wf (hF : IMono PROP F) (Φ W : Pred) (hW : Φ ⊓ᵢ F W ⊑ W) :
-    ⊢ □ (F W ⊑ᵢ Φ) -∗ fix F (monotone_of_imono hF) ⊑ᵢ Φ := by
-  have hfix := monotone_of_imono hF
+theorem _root_.Iris.IsFix.ind_wf (Φ W : Pred) (hW : Φ ⊓ᵢ F W ⊑ W) :
+    ⊢ □ (F W ⊑ᵢ Φ) -∗ fn ⊑ᵢ Φ := by
   iintro #H
-  -- `fix F = F (fix F)`, which is below `F W` since `fix F` is below `W`.
-  iapply trans (b := F (fix F hfix)) $$ [] []
-  · iapply rel_iff.1 (PartialOrder.rel_of_eq (fix_eq hfix))
-  iapply trans (b := F W) $$ [] H
-  iapply hF (fix F hfix) W
+  -- `fn = F fn`, which is below `F W` since `fn` is below `W`.
+  iapply ile_trans (b := F fn) $$ [] []
+  · iapply ile_iff.1 (PartialOrder.rel_of_eq hfix.unfold)
+  iapply ile_trans (b := F W) $$ [] H
+  iapply hF fn W
   iintro !>
-  iapply fix_iter hF
+  iapply hfix.iter hF
   iintro !>
-  iapply trans (b := Φ ⊓ᵢ F W) $$ [] []
-  · iapply meet_intro
+  iapply ile_trans (b := Φ ⊓ᵢ F W) $$ [] []
+  · iapply imeet_intro
     isplit
     · iexact H
-    · iapply rel_iff.1 PartialOrder.rel_refl
-  · iapply rel_iff.1 hW
+    · iapply ile_iff.1 PartialOrder.rel_refl
+  · iapply ile_iff.1 hW
 
 end Laws
 
 /-! ## Instances
 
-An instance at every point is `fix F ⊑ E` for a constant `E`, or `fix F ⊑ m (fix F)` for `m` a
-`map` of an operator, which is monotone by `PointwiseLifting.map_mono`: Park induction (`fix_le_of`,
-`fix_le_map`). -/
+An instance at every point is `fn ⊑ E` for a constant `E`, or `fn ⊑ m fn` for `m` a `map` of an
+operator, which is monotone by `PointwiseLifting.map_mono`: Park induction (`IsFix.le_of`,
+`IsFix.le_map`). -/
 
 private theorem true_wand_elim {PROP : Type _} [BI PROP] (P : PROP) : iprop(True -∗ P) ⊢ P := by
   iintro H
@@ -346,46 +336,44 @@ private theorem absorbing_true_wand {PROP : Type _} [BI PROP] (P : PROP) [Absorb
   iintro H -
   iexact H
 
-/-! ### The instances, at every point -/
-
-open PointwiseLifting (all all_imp all_and all_forall map all_le map_const fix_all)
+open PointwiseLifting (all all_imp all_and all_forall map all_le map_const)
 
 section Lfp
 open MonotoneFixpoint
 variable (PROP : Type _) [BI PROP] {Pred : Type _} [CCPO Pred] [PointwiseLifting PROP Pred]
-  [PointwiseLiftingLe PROP Pred]
-  {F : Pred → Pred} (hF : monotone F)
-include hF
+  [PointwiseLiftingLe PROP Pred] {F : Pred → Pred} {fn : Pred} (hfix : IsFix F fn)
+  (hF : monotone F)
+include hfix hF
 
-theorem lfp_affine
-    (h : all (B := PROP) Affine (F (map (fun _ : PROP => iprop(emp)) (fix F hF)))) :
-    all (B := PROP) Affine (fix F hF) := by
+theorem _root_.Iris.IsFix.lfp_affine
+    (h : all (B := PROP) Affine (F (map (fun _ : PROP => iprop(emp)) fn))) :
+    all (B := PROP) Affine fn := by
   have hC (P : PROP) : Affine P ↔ P ⊑ (fun _ => iprop(emp)) P := ⟨fun h => h.affine, fun h => ⟨h⟩⟩
   -- Park induction at the constant `emp`.
-  exact (all_le hC _).2 <| fix_le_of hF <|
+  exact (all_le hC _).2 <| hfix.le_of hF <|
     PartialOrder.rel_trans ((all_le hC _).1 h) (PartialOrder.rel_of_eq map_const)
 
-theorem lfp_absorbing
-    (h : all (B := PROP) Absorbing (F (map (fun P : PROP => iprop(True -∗ P)) (fix F hF)))) :
-    all (B := PROP) Absorbing (fix F hF) :=
-  fix_all hF (fun _ _ => wand_mono_right)
+theorem _root_.Iris.IsFix.lfp_absorbing
+    (h : all (B := PROP) Absorbing (F (map (fun P : PROP => iprop(True -∗ P)) fn))) :
+    all (B := PROP) Absorbing fn :=
+  hfix.all hF (fun _ _ => wand_mono_right)
     (fun P => ⟨fun _ => absorbing_true_wand P, fun h => ⟨sep_symm.trans (wand_elim h)⟩⟩)
     (all_forall true_wand_elim _) h
 
-theorem lfp_persistent_affine
-    (hA : all (B := PROP) Affine (F (map (fun P : PROP => iprop(□ P)) (fix F hF))))
-    (hP : all (B := PROP) Persistent (F (map (fun P : PROP => iprop(□ P)) (fix F hF)))) :
-    all (B := PROP) Persistent (fix F hF) :=
-  all_imp (fun _ h => h.2) <| fix_all hF (C := fun P => Affine P ∧ Persistent P)
+theorem _root_.Iris.IsFix.lfp_persistent_affine
+    (hA : all (B := PROP) Affine (F (map (fun P : PROP => iprop(□ P)) fn)))
+    (hP : all (B := PROP) Persistent (F (map (fun P : PROP => iprop(□ P)) fn))) :
+    all (B := PROP) Persistent fn :=
+  all_imp (fun _ h => h.2) <| hfix.all hF (C := fun P => Affine P ∧ Persistent P)
     (fun _ _ => intuitionistically_mono)
     (fun P => ⟨fun ⟨hA, hP⟩ => (@intuitionistically_of_intuitionistic _ _ P hA hP).2,
       fun h => ⟨⟨h.trans Affine.affine⟩, ⟨h.trans persistently_of_intuitionistically⟩⟩⟩)
     (all_forall (fun _ => intuitionistically_elim) _) (all_and hA hP)
 
-theorem lfp_persistent_absorbing (hA : all (B := PROP) Absorbing (fix F hF))
-    (hP : all (B := PROP) Persistent (F (map (fun P : PROP => iprop(<pers> P)) (fix F hF)))) :
-    all (B := PROP) Persistent (fix F hF) :=
-  fix_all hF (fun _ _ => persistently_mono) (fun _ => ⟨fun h => h.persistent, fun h => ⟨h⟩⟩)
+theorem _root_.Iris.IsFix.lfp_persistent_absorbing (hA : all (B := PROP) Absorbing fn)
+    (hP : all (B := PROP) Persistent (F (map (fun P : PROP => iprop(<pers> P)) fn))) :
+    all (B := PROP) Persistent fn :=
+  hfix.all hF (fun _ _ => persistently_mono) (fun _ => ⟨fun h => h.persistent, fun h => ⟨h⟩⟩)
     (all_imp (fun P h => @persistently_elim _ _ P h) hA) hP
 
 end Lfp
@@ -393,14 +381,14 @@ end Lfp
 section Gfp
 open CoMonotoneFixpoint
 variable (PROP : Type _) [BI PROP] {Pred : Type _} [CCPO Pred] [PointwiseLifting PROP Pred]
-  [PointwiseLiftingLe PROP Pred]
-  {F : Pred → Pred} (hF : monotone F)
-include hF
+  [PointwiseLiftingLe PROP Pred] {F : Pred → Pred} {fn : Pred} (hfix : IsFix F fn)
+  (hF : monotone F)
+include hfix hF
 
-theorem gfp_absorbing
-    (h : all (B := PROP) Absorbing (F (map (fun P : PROP => iprop(<absorb> P)) (fix F hF)))) :
-    all (B := PROP) Absorbing (fix F hF) :=
-  fix_all hF (fun _ _ => absorbingly_mono) (fun _ => ⟨fun h => h.absorbing, fun h => ⟨h⟩⟩)
+theorem _root_.Iris.IsFix.gfp_absorbing
+    (h : all (B := PROP) Absorbing (F (map (fun P : PROP => iprop(<absorb> P)) fn))) :
+    all (B := PROP) Absorbing fn :=
+  hfix.all hF (fun _ _ => absorbingly_mono) (fun _ => ⟨fun h => h.absorbing, fun h => ⟨h⟩⟩)
     (all_forall (fun _ => absorbingly_intro) _) h
 
 end Gfp

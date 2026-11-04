@@ -505,7 +505,7 @@ example : Persistent (four (PROP := PROP) 3 0 true []) := inferInstance
 open Lean Meta Elab Command in
 elab "#check_clean " ns:ident : command => do
   let env ← getEnv
-  let bad := [``Iris.IOrder.le, ``Iris.IMeet.meet, ``Iris.INe.ne, ``Lean.Order.PartialOrder.rel,
+  let bad := [``Iris.IOrder.le, ``Iris.IOrder.meet, ``Iris.INe.ne, ``Lean.Order.PartialOrder.rel,
     ``Iris.PointwiseLifting.rel, ``Iris.PointwiseLifting.map, ``Iris.PointwiseLifting.zip,
     ``Iris.PointwiseLifting.all, ``Iris.IPointwiseLifting.irel, ``Iris.IOrder.IMono,
     ``Lean.Order.fix]

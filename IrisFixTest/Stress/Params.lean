@@ -475,19 +475,18 @@ info: @imv.iter : ∀ {PROP : Type u_1} [inst : BI PROP] (Φ : Nat → PROP), �
 -/
 #guard_msgs in #check @imv.iter
 
--- BUG (usability): `ne` names its step index `n`; a parameter `n` becomes `n_1` instead of the
--- step index being primed. (The functions `f g` are now primed: `f'`.)
+-- A parameter `n` keeps its name; `ne` primes its step index `n'`, and the functions `f'`.
 section
 variable {α : Type _}
 ifix neClash [OFE α] (f : α → α) (x y : α) (n : Nat) : PROP := iprop% ▷ neClash f y x (n + 1)
 /--
-info: @neClash.ne : ∀ {PROP : Type u_1} [inst : BI PROP] {α : Type u_2} [inst_1 : OFE α] (f : α → α) {n : Nat},
+info: @neClash.ne : ∀ {PROP : Type u_1} [inst : BI PROP] {α : Type u_2} [inst_1 : OFE α] (f : α → α) {n' : Nat},
   (∀ (f' g : α → α → Nat → PROP),
-      (∀ (x x' : α), x ≡{n}≡ x' → ∀ (y y' : α), y ≡{n}≡ y' → ∀ (n_1 : Nat), f' x y n_1 ≡{n}≡ g x' y' n_1) →
+      (∀ (x x' : α), x ≡{n'}≡ x' → ∀ (y y' : α), y ≡{n'}≡ y' → ∀ (n : Nat), f' x y n ≡{n'}≡ g x' y' n) →
         ∀ (x x' : α),
-          x ≡{n}≡ x' →
-            ∀ (y y' : α), y ≡{n}≡ y' → ∀ (n_1 : Nat), neClash.pre f f' x y n_1 ≡{n}≡ neClash.pre f g x' y' n_1) →
-    ∀ (x x' : α), x ≡{n}≡ x' → ∀ (y y' : α), y ≡{n}≡ y' → ∀ (n_1 : Nat), neClash f x y n_1 ≡{n}≡ neClash f x' y' n_1
+          x ≡{n'}≡ x' →
+            ∀ (y y' : α), y ≡{n'}≡ y' → ∀ (n : Nat), neClash.pre f f' x y n ≡{n'}≡ neClash.pre f g x' y' n) →
+    ∀ (x x' : α), x ≡{n'}≡ x' → ∀ (y y' : α), y ≡{n'}≡ y' → ∀ (n : Nat), neClash f x y n ≡{n'}≡ neClash f x' y' n
 -/
 #guard_msgs in #check @neClash.ne
 end

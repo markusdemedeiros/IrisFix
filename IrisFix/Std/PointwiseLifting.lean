@@ -16,10 +16,10 @@ pointwise (`map`, `zip`), and relations quantify over the points (`rel`). The la
 agree. At concrete types, all of them unfold to the plain curried statements.
 
 A structure on `B` lifts to `Pred` through `map`, `zip` and `rel`: `all C a` is `C` at every point,
-`PointwiseLiftingLim` says that `all` preserves limits, and `IOrder` and `IMeet` get their
-instances from the ones at `PROP`. A class that does not name its base, such as `INe`, lifts by
-its own `Pi` instances instead: instance search cannot
-find the base `B` from `Pred` alone, since every `Pred` is also a lifting of itself. -/
+`PointwiseLiftingLim` says that `all` preserves limits, and the order and meet of the BI lift as
+`rel` and `zip` of the ones on `PROP`. A class that does not name its base, such as `INe`, lifts by
+its own `Pi` instances instead: instance search cannot find the base `B` from `Pred` alone, since
+every `Pred` is also a lifting of itself. -/
 
 @[expose] public section
 
@@ -150,10 +150,10 @@ variable {B Pred : Type _} [PointwiseLifting B Pred] [PartialOrder B] [CCPO Pred
   [PointwiseLiftingLe B Pred]
 
 /-- `C` at every point of a fixpoint, for `C x ↔ x ⊑ m x` and `m` below the identity there. -/
-theorem fix_all {F : Pred → Pred} (hF : monotone F) {C : B → Prop} {m : B → B}
-    (hm : monotone m) (hC : ∀ x, C x ↔ x ⊑ m x) (hle : all (fun x => m x ⊑ x) (fix F hF))
-    (h : all C (F (map m (fix F hF)))) : all C (fix F hF) :=
-  (all_le hC _).2 <| fix_le_map hF (map_mono hm) (map_le_iff.2 hle) ((all_le hC _).1 h)
+theorem _root_.Iris.IsFix.all {F : Pred → Pred} {fn : Pred} (hfix : IsFix F fn) (hF : monotone F)
+    {C : B → Prop} {m : B → B} (hm : monotone m) (hC : ∀ x, C x ↔ x ⊑ m x)
+    (hle : all (fun x => m x ⊑ x) fn) (h : all C (F (map m fn))) : all C fn :=
+  (all_le hC _).2 <| hfix.le_map hF (map_mono hm) (map_le_iff.2 hle) ((all_le hC _).1 h)
 
 end Fix
 

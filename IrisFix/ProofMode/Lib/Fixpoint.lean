@@ -13,10 +13,12 @@ public meta import Lean.Compiler.NoncomputableAttr
 
 `ifix name binders : type := body` defines `name` by `partial_fixpoint`, in the order of
 `MonotoneFixpoint` (`icofix`: `CoMonotoneFixpoint`), which also infers the fixed parameters. The
-laws are the generic laws of `IOrder`, at `name.pre`: their statements unfold the `IOrder`
-instances, so they quantify over the varying parameters, curried. Laws are emitted only if the
-definition succeeds. A non-recursive body is a fixpoint too; a body without BI operations needs
-`local bi`. Generated declarations of a protected `name` are protected. -/
+laws are the generic laws of `IsFix`, at `name.pre`, from `partial_fixpoint`'s own
+`name.fixpoint_induct` and `name.eq_unfold`; the monotonicity tactic runs again, for `name.pre`.
+Their statements unfold the `IOrder` instances, so they quantify over the varying parameters,
+curried. Laws are emitted only if the definition succeeds. A non-recursive body is a fixpoint too;
+a body without BI operations needs `local bi`. Generated declarations of a protected `name` are
+protected. -/
 
 public section
 
@@ -30,41 +32,36 @@ syntax monotoneClause := "monotone_by " Lean.Parser.Tactic.tacticSeq
 syntax "ifix_monotone_default" : tactic
 macro_rules | `(tactic| ifix_monotone_default) => `(tactic| imono)
 
-/-- Remove metadata, such as `partial_fixpoint`'s marks on recursive calls. -/
-meta def stripMData (e : Expr) : CoreM Expr :=
-  Core.transform e (pre := fun e => return match e with
-    | .mdata _ e => .visit e
-    | _ => .continue)
-
-/-- The statement of a law: `e`, with the functional `F` folded into `pre`, the orders unfolded,
-`fix pre _` folded into `fn`, and default values and auto-params dropped. -/
-meta def cleanup (F pre fn : Expr) (e : Expr) : MetaM Expr := do
-  let e ← unfoldOrders <| (← stripMData e).replace fun e =>
-    if e == F then some pre
-    else if e.isAppOfArity ``optParam 2 || e.isAppOfArity ``autoParam 2 then some (e.getArg! 0)
+/-- The statement of a law: `e`, with the orders unfolded, and default values and auto-params
+dropped. -/
+meta def cleanup (e : Expr) : MetaM Expr := do
+  Core.betaReduce <| ← unfoldOrders <| e.replace fun e =>
+    if e.isAppOfArity ``optParam 2 || e.isAppOfArity ``autoParam 2 then some (e.getArg! 0)
     else none
-  Core.betaReduce <| e.replace fun e =>
-    if e.isAppOfArity ``Lean.Order.fix 4 && e.getArg! 2 == pre then fn else none
 
 /-- Close `monotone F` by `IOrder.monotone_of_imono`, proving `IMono PROP F` with `tac`. `PROP` is
-the codomain of the domain of `F`. With `unfold`, the goal is shown unfolded, in the BI. -/
-syntax (name := ifixMonotone) "ifix_monotone " &"unfold"? Lean.Parser.Tactic.tacticSeq : tactic
+the codomain of the domain of `F`. -/
+syntax (name := ifixMonotone) "ifix_monotone " Lean.Parser.Tactic.tacticSeq : tactic
 
 @[tactic ifixMonotone] meta def evalIfixMonotone : Tactic.Tactic
-  | `(tactic| ifix_monotone $[unfold%$u]? $tac) => Tactic.withMainContext do
+  | `(tactic| ifix_monotone $tac) => Tactic.withMainContext do
     let goal ← Tactic.getMainGoal
     let_expr Lean.Order.monotone X _ _ _ F := ← whnfR (← goal.getType)
       | throwError "ifix_monotone: expected a goal `monotone F`"
     let PROP ← forallTelescopeReducing X fun _ P => pure P
     let err := m!"ifix_monotone: the order of{indentExpr X}\nis not the order of `IOrder`"
     let imono ← try mkAppM ``IOrder.IMono #[PROP, F] catch _ => throwError err
-    let hF ← mkFreshExprSyntheticOpaqueMVar (← if u.isSome then unfoldOrders imono else pure imono)
+    let hF ← mkFreshExprSyntheticOpaqueMVar imono
     let proof ← mkAppM ``IOrder.monotone_of_imono #[hF]
     unless ← isDefEq (← inferType proof) (← goal.getType) do throwError err
     goal.assign proof
     Tactic.replaceMainGoal [hF.mvarId!]
     Tactic.evalTactic tac
   | _ => throwUnsupportedSyntax
+
+/-- Unfold the orders of `IOrder` in the goal, into the BI. -/
+elab "ifix_unfold" : tactic => Tactic.liftMetaTactic1 fun g => do
+  g.replaceTargetDefEq (← unfoldOrders (← g.getType))
 
 /-- The full name of the declaration `name` in the current namespace, as `def` names it. -/
 meta def fullName (name : Name) : CommandElabM Name := do
@@ -176,9 +173,10 @@ meta partial def elimDeadLets (e : Expr) : Expr :=
       if b.hasLooseBVar 0 then none else some (elimDeadLets (b.lowerLooseBVars 1 1))
     | _ => none
 
-/-- Emit `name.pre`, `name.pre_mono`, `name.unfold` and the laws of `name`, a `partial_fixpoint`
-proved monotone by `ifix_monotone`. `coind` names the laws for the greatest fixpoint. -/
-meta def emitLaws (declName : Name) (coind : Bool) : TermElabM Unit := do
+/-- Emit `name.pre`, `name.pre_mono`, `name.unfold` and the laws of `name`, a `partial_fixpoint`,
+from its `fixpoint_induct` and `eq_unfold`. `tac` proves `IMono PROP name.pre`, again. `coind`
+names the laws for the greatest fixpoint. -/
+meta def emitLaws (declName : Name) (coind : Bool) (tac : Syntax) : TermElabM Unit := do
   let info ← getConstInfoDefn declName
   -- The definition, or its monotonicity proof, failed: the errors are already reported.
   if info.value.hasSorry then return
@@ -186,69 +184,70 @@ meta def emitLaws (declName : Name) (coind : Bool) : TermElabM Unit := do
     if coind then [`coiter, `coind, `paco, `absorbing]
     else [`iter, `ind, `ind_wf, `affine, `absorbing, `persistent_affine, `persistent_absorbing]
   let levels := info.levelParams
-  lambdaTelescope info.value fun params body => do
-    -- If a fixed parameter follows a varying one, `partial_fixpoint` moves the fixed parameters
-    -- first, into an auxiliary `fun fixed => fix X inst F h`, applied to the varying ones.
-    let body ← match body.getAppFn with
-      | .const n us => if n == ``Lean.Order.fix then pure body else do
-        let ci ← getConstInfo n
-        let some v := ci.value? | pure body
-        pure <| (v.instantiateLevelParams ci.levelParams us).beta body.getAppArgs
-      | _ => pure body
-    let_expr Lean.Order.fix X inst F h := body.getAppPrefix 4
-      | throwError "ifix: `{declName}` is not a `partial_fixpoint`"
+  let us := levels.map mkLevelParam
+  let (induct, eqUnfold) := (declName ++ `fixpoint_induct, declName ++ `eq_unfold)
+  executeReservedNameAction induct
+  executeReservedNameAction eqUnfold
+  -- `∀ fixed (motive : X → Prop), admissible motive → (∀ f, motive f → motive (F f)) → motive fn`
+  forallTelescope (← inferType (.const induct us)) fun xs concl => do
+    let fixed := xs.extract 0 (xs.size - 3)
+    let_expr Lean.Order.admissible X inst _ := ← inferType xs[xs.size - 2]!
+      | throwError "ifix: unexpected{indentExpr (← inferType (.const induct us))}"
+    let fn := concl.appArg!
+    let F ← forallTelescope (← inferType xs.back!) fun fs step =>
+      mkLambdaFVars #[fs[0]!] step.appArg!
     -- The laws and `pre` quantify over `X`, with explicit binders.
     let X := X.replace fun | .forallE x t b _ => some (.forallE x t b .default) | _ => none
-    let varying := body.getAppArgs.extract 4
-    let fixed := params.filter (!varying.contains ·)
-    let avoid ← params.toList.mapM (·.fvarId!.getUserName)
-    -- `partial_fixpoint` marks the recursive calls, and abstracts the monotonicity proof into an
-    -- auxiliary theorem.
-    let F := (← stripMData F).replace fun
-      | .lam x t b _ => some (.lam x t b .default)
-      | _ => none
-    let h' := match h.getAppFn, h.getAppFn.constName?.bind (← getEnv).find? with
-      | .const _ us, some (.thmInfo t) =>
-        (t.value.instantiateLevelParams t.levelParams us).beta h.getAppArgs
-      | _, _ => h
-    let_expr IOrder.monotone_of_imono PROP _ _ _ iord _ hF := h'
-      | throwError "ifix: unexpected monotonicity proof{indentExpr h'}"
-    let fn ← mkLambdaFVars varying (mkAppN (.const declName (levels.map mkLevelParam)) params)
-    let pre ← emitPre declName levels fixed (elimDeadLets F)
+    let F := elimDeadLets <| F.replace fun | .lam x t b _ => some (.lam x t b .default) | _ => none
+    let pre ← emitPre declName levels fixed F
+    -- `fn = pre fn`: `eq_unfold`, at `fn`.
+    let unfold ← withLocalDeclD `f (← inferType (.const declName us)) fun f => do
+      mkCongrArg (← mkLambdaFVars #[f] (fn.replace (if ·.isConstOf declName then f else none)))
+        (.const eqUnfold us)
+    let isFix ← mkAppOptM ``IsFix.mk #[X, inst, pre, fn, mkAppN (.const induct us) fixed, unfold]
+    let PROP ← forallTelescopeReducing X fun _ P => pure P
+    let hF ← elabTermEnsuringType (← `(by $(⟨tac⟩))) (← mkAppM ``IOrder.IMono #[PROP, F])
+    synthesizeSyntheticMVarsNoPostponing
+    let hF ← instantiateMVars hF
+    if hF.hasSorry then return
+    -- `name.unfold`, quantified like `name`, and the names that law binders avoid.
+    let avoid ← forallTelescopeReducing X fun ys _ => do
+      let binders := (mkAppN fn ys).headBeta.getAppArgs.filter (·.isFVar)
+      emitUnfold declName levels binders ys unfold fn pre
+      binders.toList.mapM (·.fvarId!.getUserName)
     let emit (suffix : Name) (value : Expr) : MetaM Unit := do
-      let type ← cleanup F pre fn (← lawType avoid value)
+      let type ← cleanup (← lawType avoid value)
       emitThm (declName ++ suffix) levels (← mkForallFVars fixed type) (← mkLambdaFVars fixed value)
-    emit `pre_mono hF
-    forallTelescopeReducing (← instantiateForall X varying) fun ys _ => do
-      emitUnfold declName levels (params ++ ys) (varying ++ ys) (← mkAppM ``Lean.Order.fix_eq #[h])
-        fn pre
-    -- The generic laws, at `name.pre`.
-    let law (lemma : Name) := mkAppOptM lemma #[PROP, none, X, inst, iord, pre, hF]
-    emit (if coind then `coiter else `iter) (← law ``IOrder.fix_iter)
-    emit `strong_mono (← law ``IOrder.fix_strong_mono)
-    let lawMeet (lemma : Name) := mkAppOptM lemma #[PROP, none, X, inst, iord, pre, none, hF]
-    emit (if coind then `coind else `ind) (← lawMeet ``IOrder.fix_ind)
-    emit (if coind then `paco else `ind_wf) (← lawMeet ``IOrder.fix_ind_wf)
+    emitThm (declName ++ `pre_mono) levels
+      (← mkForallFVars fixed (← unfoldOrders (← mkAppM ``IOrder.IMono #[PROP, pre])))
+      (← mkLambdaFVars fixed hF)
+    -- The generic laws, at `name.pre` and `name`.
+    let law (lemma : Name) := mkAppM lemma #[isFix, hF]
+    emit (if coind then `coiter else `iter) (← law ``IsFix.iter)
+    emit `strong_mono (← law ``IsFix.strong_mono)
+    emit (if coind then `coind else `ind) (← law ``IsFix.ind)
+    emit (if coind then `paco else `ind_wf) (← law ``IsFix.ind_wf)
+    let hm ← mkAppM ``IOrder.monotone_of_imono #[hF]
     -- `ne`, if an argument has an OFE.
     let ineType := mkApp2 (← mkConstWithFreshMVarLevels ``INe) X inst
     if let some ine ← observing? (synthInstance ineType) then
       if (ine.find? (·.isConstOf ``INe.instPiNE)).isSome then
-        emit `ne (← mkAppOptM ``fix_ne #[X, inst, ine, pre, pre, h, h])
+        emit `ne (← mkAppM ``IsFix.ne #[isFix, hm])
     -- The instances: the generic theorems, with their hypotheses as instance arguments.
     let inst (suffix lemma : Name) (hyps : Nat) : MetaM Unit := do
-      let value ← mkAppOptM lemma #[PROP, none, X, inst, none, none, pre, h]
-      let type ← cleanup F pre fn (← lawType avoid value)
+      let value ← mkAppM lemma #[PROP, isFix, hm]
+      let type ← cleanup (← lawType avoid value)
       let type ← forallBoundedTelescope type hyps fun hs b => do
         withNewBinderInfos (hs.map (·.fvarId!, .instImplicit)) (mkForallFVars hs b)
       emitThm (declName ++ suffix) levels (← mkForallFVars fixed type) (← mkLambdaFVars fixed value)
       addInstance (declName ++ suffix) .global (eval_prio default)
     if coind then
-      inst `absorbing ``IOrder.gfp_absorbing 1
+      inst `absorbing ``IsFix.gfp_absorbing 1
     else
-      inst `affine ``IOrder.lfp_affine 1
-      inst `absorbing ``IOrder.lfp_absorbing 1
-      inst `persistent_affine ``IOrder.lfp_persistent_affine 2
-      inst `persistent_absorbing ``IOrder.lfp_persistent_absorbing 2
+      inst `affine ``IsFix.lfp_affine 1
+      inst `absorbing ``IsFix.lfp_absorbing 1
+      inst `persistent_affine ``IsFix.lfp_persistent_affine 2
+      inst `persistent_absorbing ``IsFix.lfp_persistent_absorbing 2
 
 /-- `ifix name binders : type := body`: the least fixpoint, by `partial_fixpoint`; `icofix`: the
 greatest. The body is a term or match alternatives. -/
@@ -265,9 +264,10 @@ syntax (name := ifixCmd) declModifiers ("ifix " <|> "icofix ") declId Lean.Parse
   let mods : TSyntax ``Lean.Parser.Command.declModifiers := ⟨mods⟩
   let (id, sig) : TSyntax ``Lean.Parser.Command.declId × TSyntax ``Lean.Parser.Command.optDeclSig :=
     (⟨id⟩, ⟨sig⟩)
+  -- The monotonicity tactic, on `IMono PROP F`.
   let tac ← match clause.getOptional? with
-    | some c => `(tactic| ifix_monotone unfold $(⟨c[1]⟩))
-    | none => `(tactic| ifix_monotone ifix_monotone_default)
+    | some c => `(tactic| (ifix_unfold; $(⟨c[1]⟩)))
+    | none => `(tactic| ifix_monotone_default)
   let body : Term ← if body[0].isAtom then pure ⟨body[1]⟩ else `(fun $(⟨body[0]⟩):matchAlts)
   -- A non-recursive body refers to the definition, so that `partial_fixpoint` still defines it as
   -- a fixpoint; `emitLaws` removes the reference.
@@ -278,7 +278,8 @@ syntax (name := ifixCmd) declModifiers ("ifix " <|> "icofix ") declId Lean.Parse
   unless (← getEnv).contains full do liftCoreM <| checkFresh full [`pre, `iter, `coiter]
   withScope (fun sc => { sc with opts := synthInstance.maxSize.set sc.opts 4096 }) do
   let defCmd (body : Term) := `(command| open scoped $(mkIdent ord) in
-    $mods:declModifiers def $id $sig := $body partial_fixpoint monotonicity by $tac:tactic)
+    $mods:declModifiers def $id $sig := $body
+      partial_fixpoint monotonicity by ifix_monotone $tac:tactic)
   -- A body without BI operations does not include the `BI` instance of the section: if the
   -- definition fails, retry with a mention of the BI `bi%`.
   if let some errs ← tryElab (← defCmd body) then
@@ -287,6 +288,6 @@ syntax (name := ifixCmd) declModifiers ("ifix " <|> "icofix ") declId Lean.Parse
       return
   pushScope
   activateScoped ord
-  try liftTermElabM do emitLaws (← resolveDeclared full) coind finally popScope
+  try liftTermElabM do emitLaws (← resolveDeclared full) coind tac finally popScope
 
 end Iris.Fixpoint

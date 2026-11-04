@@ -31,41 +31,41 @@ local notation "ν" => fix F (IOrder.monotone_of_imono h)
 
 open MonotoneFixpoint in
 example (h : IOrder.IMono PROP F) (Φ : A → PROP) : ⊢ □ (∀ x, F Φ x -∗ Φ x) -∗ ∀ x, μ x -∗ Φ x :=
-  IOrder.fix_iter h Φ
+  (fix_isFix (IOrder.monotone_of_imono h)).iter h Φ
 
 open CoMonotoneFixpoint in
 example (h : IOrder.IMono PROP F) (Φ : A → PROP) : ⊢ □ (∀ x, Φ x -∗ F Φ x) -∗ ∀ x, Φ x -∗ ν x :=
-  IOrder.fix_iter h Φ
+  (fix_isFix (IOrder.monotone_of_imono h)).iter h Φ
 
 open MonotoneFixpoint in
 example (h : IOrder.IMono PROP F) (G : (A → PROP) → A → PROP) (g : A → PROP)
     (hg : ∀ x, G g x ⊢ g x) : ⊢ □ (∀ Φ x, F Φ x -∗ G Φ x) -∗ ∀ x, μ x -∗ g x :=
-  IOrder.fix_strong_mono h G g hg
+  (fix_isFix (IOrder.monotone_of_imono h)).strong_mono h G g hg
 
 open CoMonotoneFixpoint in
 example (h : IOrder.IMono PROP F) (G : (A → PROP) → A → PROP) (g : A → PROP)
     (hg : ∀ x, g x ⊢ G g x) : ⊢ □ (∀ Φ x, G Φ x -∗ F Φ x) -∗ ∀ x, g x -∗ ν x :=
-  IOrder.fix_strong_mono h G g hg
+  (fix_isFix (IOrder.monotone_of_imono h)).strong_mono h G g hg
 
 open MonotoneFixpoint in
 example (h : IOrder.IMono PROP F) (Φ : A → PROP) :
     ⊢ □ (∀ x, F (fun y => iprop(Φ y ∧ μ y)) x -∗ Φ x) -∗ ∀ x, μ x -∗ Φ x :=
-  IOrder.fix_ind h Φ
+  (fix_isFix (IOrder.monotone_of_imono h)).ind h Φ
 
 open CoMonotoneFixpoint in
 example (h : IOrder.IMono PROP F) (Φ : A → PROP) :
     ⊢ □ (∀ x, Φ x -∗ F (fun y => iprop(Φ y ∨ ν y)) x) -∗ ∀ x, Φ x -∗ ν x :=
-  IOrder.fix_ind h Φ
+  (fix_isFix (IOrder.monotone_of_imono h)).ind h Φ
 
 open MonotoneFixpoint in
 example (h : IOrder.IMono PROP F) (Φ W : A → PROP) (hW : ∀ x, iprop(Φ x ∧ F W x) ⊢ W x) :
     ⊢ □ (∀ x, F W x -∗ Φ x) -∗ ∀ x, μ x -∗ Φ x :=
-  IOrder.fix_ind_wf h Φ W hW
+  (fix_isFix (IOrder.monotone_of_imono h)).ind_wf h Φ W hW
 
 open CoMonotoneFixpoint in
 example (h : IOrder.IMono PROP F) (Φ W : A → PROP) (hW : ∀ x, W x ⊢ iprop(Φ x ∨ F W x)) :
     ⊢ □ (∀ x, Φ x -∗ F W x) -∗ ∀ x, Φ x -∗ ν x :=
-  IOrder.fix_ind_wf h Φ W hW
+  (fix_isFix (IOrder.monotone_of_imono h)).ind_wf h Φ W hW
 
 section
 open MonotoneFixpoint
@@ -73,14 +73,15 @@ open MonotoneFixpoint
 -- Park induction alone, at a constant.
 example (h : IOrder.IMono PROP F) [∀ x, Affine (F (fun _ => iprop(emp)) x)] (x : A) :
     Affine (μ x) :=
-  ⟨fix_le_of (IOrder.monotone_of_imono h) (E := fun _ => iprop(emp))
+  ⟨(fix_isFix (IOrder.monotone_of_imono h)).le_of (IOrder.monotone_of_imono h)
+    (E := fun _ => iprop(emp))
     (fun _ => Affine.affine) x⟩
 
 example (h : IOrder.IMono PROP F) [∀ x, Absorbing (F (fun y => iprop(True -∗ μ y)) x)] (x : A) :
     Absorbing (μ x) := by
   have hT (P : PROP) : iprop(True -∗ P) ⊢ P := by iintro H; iapply H; ipureintro; trivial
   have hA (P : PROP) [Absorbing P] : P ⊢ iprop(True -∗ P) := by iintro H -; iexact H
-  have hle := fix_le_map (IOrder.monotone_of_imono h)
+  have hle := (fix_isFix (IOrder.monotone_of_imono h)).le_map (IOrder.monotone_of_imono h)
     (PointwiseLifting.map_mono (B := PROP) (m := fun P => iprop(True -∗ P))
       fun _ _ => wand_mono_right)
     (fun _ => hT _) (fun _ => hA _)
@@ -88,7 +89,7 @@ example (h : IOrder.IMono PROP F) [∀ x, Absorbing (F (fun y => iprop(True -∗
 
 example (h : IOrder.IMono PROP F) [∀ x, Affine (F (fun y => iprop(□ μ y)) x)]
     [∀ x, Persistent (F (fun y => iprop(□ μ y)) x)] (x : A) : Persistent (μ x) := by
-  have hle := fix_le_map (IOrder.monotone_of_imono h)
+  have hle := (fix_isFix (IOrder.monotone_of_imono h)).le_map (IOrder.monotone_of_imono h)
     (PointwiseLifting.map_mono (B := PROP) (m := fun P => iprop(□ P))
       fun _ _ => intuitionistically_mono)
     (fun _ => intuitionistically_elim)
@@ -97,7 +98,7 @@ example (h : IOrder.IMono PROP F) [∀ x, Affine (F (fun y => iprop(□ μ y)) x
 
 example (h : IOrder.IMono PROP F) [∀ x, Absorbing (μ x)]
     [∀ x, Persistent (F (fun y => iprop(<pers> μ y)) x)] (x : A) : Persistent (μ x) := by
-  have hle := fix_le_map (IOrder.monotone_of_imono h)
+  have hle := (fix_isFix (IOrder.monotone_of_imono h)).le_map (IOrder.monotone_of_imono h)
     (PointwiseLifting.map_mono (B := PROP) (m := fun P => iprop(<pers> P))
     fun _ _ => persistently_mono) (fun _ => persistently_elim) (fun _ => Persistent.persistent)
   exact ⟨hle x⟩
@@ -106,7 +107,7 @@ end
 open CoMonotoneFixpoint in
 example (h : IOrder.IMono PROP F) [∀ x, Absorbing (F (fun y => iprop(<absorb> ν y)) x)] (x : A) :
     Absorbing (ν x) := by
-  have hle := fix_le_map (IOrder.monotone_of_imono h)
+  have hle := (fix_isFix (IOrder.monotone_of_imono h)).le_map (IOrder.monotone_of_imono h)
     (PointwiseLifting.map_mono (B := PROP) (m := fun P => iprop(<absorb> P))
     fun _ _ => absorbingly_mono) (fun _ => absorbingly_intro) (fun _ => Absorbing.absorbing)
   exact ⟨hle x⟩
@@ -166,30 +167,31 @@ variable {F : (Nat → Bool → PROP) → Nat → Bool → PROP}
 local notation "μ" => fix F (IOrder.monotone_of_imono hF)
 
 example (Φ : Nat → Bool → PROP) : ⊢ □ (∀ n b, F Φ n b -∗ Φ n b) -∗ ∀ n b, μ n b -∗ Φ n b :=
-  IOrder.fix_iter hF Φ
+  (fix_isFix (IOrder.monotone_of_imono hF)).iter hF Φ
 
 example (G : (Nat → Bool → PROP) → Nat → Bool → PROP) (g : Nat → Bool → PROP)
     (hg : ∀ n b, G g n b ⊢ g n b) :
     ⊢ □ (∀ Φ n b, F Φ n b -∗ G Φ n b) -∗ ∀ n b, μ n b -∗ g n b :=
-  IOrder.fix_strong_mono hF G g hg
+  (fix_isFix (IOrder.monotone_of_imono hF)).strong_mono hF G g hg
 
 example (Φ : Nat → Bool → PROP) :
     ⊢ □ (∀ n b, F (fun n b => iprop(Φ n b ∧ μ n b)) n b -∗ Φ n b) -∗ ∀ n b, μ n b -∗ Φ n b :=
-  IOrder.fix_ind hF Φ
+  (fix_isFix (IOrder.monotone_of_imono hF)).ind hF Φ
 
 example (Φ W : Nat → Bool → PROP) (hW : ∀ n b, iprop(Φ n b ∧ F W n b) ⊢ W n b) :
     ⊢ □ (∀ n b, F W n b -∗ Φ n b) -∗ ∀ n b, μ n b -∗ Φ n b :=
-  IOrder.fix_ind_wf hF Φ W hW
+  (fix_isFix (IOrder.monotone_of_imono hF)).ind_wf hF Φ W hW
 
 example [∀ n b, Affine (F (fun _ _ => iprop(emp)) n b)] (n : Nat) (b : Bool) : Affine (μ n b) :=
-  ⟨fix_le_of (IOrder.monotone_of_imono hF) (E := fun _ _ => iprop(emp))
+  ⟨(fix_isFix (IOrder.monotone_of_imono hF)).le_of (IOrder.monotone_of_imono hF)
+    (E := fun _ _ => iprop(emp))
     (fun _ _ => Affine.affine) n b⟩
 
 example [∀ n b, Absorbing (F (fun n b => iprop(True -∗ μ n b)) n b)] (n : Nat) (b : Bool) :
     Absorbing (μ n b) := by
   have hT (P : PROP) : iprop(True -∗ P) ⊢ P := by iintro H; iapply H; ipureintro; trivial
   have hA (P : PROP) [Absorbing P] : P ⊢ iprop(True -∗ P) := by iintro H -; iexact H
-  have hle := fix_le_map (IOrder.monotone_of_imono hF)
+  have hle := (fix_isFix (IOrder.monotone_of_imono hF)).le_map (IOrder.monotone_of_imono hF)
     (PointwiseLifting.map_mono (B := PROP) (m := fun P => iprop(True -∗ P))
       fun _ _ => wand_mono_right)
     (fun _ _ => hT _) (fun _ _ => hA _)
@@ -198,7 +200,7 @@ example [∀ n b, Absorbing (F (fun n b => iprop(True -∗ μ n b)) n b)] (n : N
 example [∀ n b, Affine (F (fun n b => iprop(□ μ n b)) n b)]
     [∀ n b, Persistent (F (fun n b => iprop(□ μ n b)) n b)] (n : Nat) (b : Bool) :
     Persistent (μ n b) := by
-  have hle := fix_le_map (IOrder.monotone_of_imono hF)
+  have hle := (fix_isFix (IOrder.monotone_of_imono hF)).le_map (IOrder.monotone_of_imono hF)
     (PointwiseLifting.map_mono (B := PROP) (m := fun P => iprop(□ P))
       fun _ _ => intuitionistically_mono)
     (fun _ _ => intuitionistically_elim)
@@ -207,7 +209,7 @@ example [∀ n b, Affine (F (fun n b => iprop(□ μ n b)) n b)]
 
 example [∀ n b, Absorbing (μ n b)] [∀ n b, Persistent (F (fun n b => iprop(<pers> μ n b)) n b)]
     (n : Nat) (b : Bool) : Persistent (μ n b) := by
-  have hle := fix_le_map (IOrder.monotone_of_imono hF)
+  have hle := (fix_isFix (IOrder.monotone_of_imono hF)).le_map (IOrder.monotone_of_imono hF)
     (PointwiseLifting.map_mono (B := PROP) (m := fun P => iprop(<pers> P))
       fun _ _ => persistently_mono)
     (fun _ _ => persistently_elim)
@@ -231,24 +233,24 @@ variable {F : (Nat → Bool → PROP) → Nat → Bool → PROP}
 local notation "ν" => fix F (IOrder.monotone_of_imono hF)
 
 example (Φ : Nat → Bool → PROP) : ⊢ □ (∀ n b, Φ n b -∗ F Φ n b) -∗ ∀ n b, Φ n b -∗ ν n b :=
-  IOrder.fix_iter hF Φ
+  (fix_isFix (IOrder.monotone_of_imono hF)).iter hF Φ
 
 example (G : (Nat → Bool → PROP) → Nat → Bool → PROP) (g : Nat → Bool → PROP)
     (hg : ∀ n b, g n b ⊢ G g n b) :
     ⊢ □ (∀ Φ n b, G Φ n b -∗ F Φ n b) -∗ ∀ n b, g n b -∗ ν n b :=
-  IOrder.fix_strong_mono hF G g hg
+  (fix_isFix (IOrder.monotone_of_imono hF)).strong_mono hF G g hg
 
 example (Φ : Nat → Bool → PROP) :
     ⊢ □ (∀ n b, Φ n b -∗ F (fun n b => iprop(Φ n b ∨ ν n b)) n b) -∗ ∀ n b, Φ n b -∗ ν n b :=
-  IOrder.fix_ind hF Φ
+  (fix_isFix (IOrder.monotone_of_imono hF)).ind hF Φ
 
 example (Φ W : Nat → Bool → PROP) (hW : ∀ n b, W n b ⊢ iprop(Φ n b ∨ F W n b)) :
     ⊢ □ (∀ n b, Φ n b -∗ F W n b) -∗ ∀ n b, Φ n b -∗ ν n b :=
-  IOrder.fix_ind_wf hF Φ W hW
+  (fix_isFix (IOrder.monotone_of_imono hF)).ind_wf hF Φ W hW
 
 example [∀ n b, Absorbing (F (fun n b => iprop(<absorb> ν n b)) n b)] (n : Nat) (b : Bool) :
     Absorbing (ν n b) := by
-  have hle := fix_le_map (IOrder.monotone_of_imono hF)
+  have hle := (fix_isFix (IOrder.monotone_of_imono hF)).le_map (IOrder.monotone_of_imono hF)
     (PointwiseLifting.map_mono (B := PROP) (m := fun P => iprop(<absorb> P))
       fun _ _ => absorbingly_mono)
     (fun _ _ => absorbingly_intro)
@@ -279,7 +281,7 @@ example (hF : ∀ Φ Ψ : Nat → Bool → PROP,
     (Φ : Nat → Bool → PROP) :
     ⊢ □ (∀ n b, evF Φ n b -∗ Φ n b) -∗ ∀ n b, ev n b -∗ Φ n b := by
   delta ev
-  exact IOrder.fix_iter hF Φ
+  exact (fix_isFix (IOrder.monotone_of_imono hF)).iter hF Φ
 end
 
 section
@@ -295,7 +297,7 @@ example (hF : ∀ Φ Ψ : Nat → Bool → PROP,
     (Φ : Nat → Bool → PROP) :
     ⊢ □ (∀ n b, Φ n b -∗ stF Φ n b) -∗ ∀ n b, Φ n b -∗ st n b := by
   delta st
-  exact IOrder.fix_iter hF Φ
+  exact (fix_isFix (IOrder.monotone_of_imono hF)).iter hF Φ
 end
 
 end IrisTest.FixpointLaws

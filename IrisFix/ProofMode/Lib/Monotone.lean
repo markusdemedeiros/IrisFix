@@ -43,7 +43,7 @@ public meta def unfoldOrders (e : Expr) : MetaM Expr := do
       return .continue)
     (post := fun e => do
       let some n := e.getAppFn.constName? | return .continue
-      unless n ∈ [``IOrder.le, ``IMeet.meet, ``INe.ne, ``Lean.Order.PartialOrder.rel,
+      unless n ∈ [``IOrder.le, ``IOrder.meet, ``INe.ne, ``Lean.Order.PartialOrder.rel,
         ``PointwiseLifting.rel, ``PointwiseLifting.map, ``PointwiseLifting.zip,
         ``IPointwiseLifting.irel] do return .continue
       let some e' ← unfoldProjInst? e | return .continue

@@ -54,22 +54,35 @@ theorem fix_rel [CCPO α] {F₁ F₂ : α → α} (h₁ : monotone F₁) (h₂ :
 
 end Order
 
-section Park
-variable {α : Sort _} [CCPO α] {F : α → α} (hF : monotone F)
+section IsFix
+variable {α : Sort _} [CCPO α] {F : α → α} {fn : α}
+
+/-- `fn` is the fixpoint `fix F` of `F`, the least in the order of the CCPO, as `partial_fixpoint`
+states it: by `fixpoint_induct` and `eq_unfold`. In a reversed order, it is the greatest. -/
+structure IsFix (F : α → α) (fn : α) : Prop where
+  induct : ∀ motive : α → Prop, admissible motive → (∀ f, motive f → motive (F f)) → motive fn
+  unfold : fn = F fn
+
+theorem fix_isFix (hF : monotone F) : IsFix F (fix F hF) := ⟨fix_induct hF, fix_eq hF⟩
 
 /-- Park induction: the fixpoint is below every prefixpoint. -/
-theorem fix_le_of {E : α} (hE : F E ⊑ E) : fix F hF ⊑ E :=
-  fix_induct hF (· ⊑ E) (fun _ => Lean.Order.csup_le) fun _ h =>
-    PartialOrder.rel_trans (hF _ _ h) hE
+theorem IsFix.le_of (h : IsFix F fn) (hF : monotone F) {E : α} (hE : F E ⊑ E) : fn ⊑ E :=
+  h.induct (· ⊑ E) (fun _ => Lean.Order.csup_le) fun _ hf => PartialOrder.rel_trans (hF _ _ hf) hE
 
 /-- The fixpoint is below `m` of itself, for a monotone `m` below the identity at the fixpoint,
-if `F (m (fix F))` is below `m` of itself. -/
-theorem fix_le_map {m : α → α} (hm : monotone m) (hle : m (fix F hF) ⊑ fix F hF)
-    (h : F (m (fix F hF)) ⊑ m (F (m (fix F hF)))) : fix F hF ⊑ m (fix F hF) :=
-  fix_le_of hF <| PartialOrder.rel_trans h <| hm _ _ <|
-    PartialOrder.rel_trans (hF _ _ hle) (PartialOrder.rel_of_eq (fix_eq hF).symm)
+if `F (m fn)` is below `m` of itself. -/
+theorem IsFix.le_map (h : IsFix F fn) (hF : monotone F) {m : α → α} (hm : monotone m)
+    (hle : m fn ⊑ fn) (hm' : F (m fn) ⊑ m (F (m fn))) : fn ⊑ m fn :=
+  h.le_of hF <| PartialOrder.rel_trans hm' <| hm _ _ <|
+    PartialOrder.rel_trans (hF _ _ hle) (PartialOrder.rel_of_eq h.unfold.symm)
 
-end Park
+/-- The fixpoint is unique. -/
+theorem IsFix.eq_fix (h : IsFix F fn) (hF : monotone F) : fn = fix F hF :=
+  PartialOrder.rel_antisymm
+    (h.le_of hF (PartialOrder.rel_of_eq (fix_eq hF).symm))
+    ((fix_isFix hF).le_of hF (PartialOrder.rel_of_eq h.unfold.symm))
+
+end IsFix
 
 /-! ## Indexed relations that sups preserve -/
 
@@ -121,5 +134,12 @@ theorem fix_ne {α : Type _} [CCPO α] [INe α] {F₁ F₂ : α → α} (h₁ : 
     (h₂ : monotone F₂) {n : Nat} (hF : ∀ f g, INe.ne n f g → INe.ne n (F₁ f) (F₂ g)) :
     INe.ne n (fix F₁ h₁) (fix F₂ h₂) :=
   fix_rel h₁ h₂ INe.ne_csup hF
+
+/-- The fixpoint of a body that preserves `ne n` is `ne n`. -/
+theorem IsFix.ne {α : Type _} [CCPO α] [INe α] {F : α → α} {fn : α} (h : IsFix F fn)
+    (hm : monotone F) {n : Nat} (hF : ∀ f g, INe.ne n f g → INe.ne n (F f) (F g)) :
+    INe.ne n fn fn := by
+  cases h.eq_fix hm
+  exact fix_ne hm hm hF
 
 end Iris

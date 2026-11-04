@@ -60,7 +60,8 @@ meta def emitGuardedLaws (declName : Name) (cName : Name) : TermElabM Unit := do
   let levels := cInfo.levelParams
   forallTelescope cInfo.type fun params cType => do
     let c := mkAppN (.const cName (levels.map mkLevelParam)) params
-    let_expr OFE.Contractive _ _ _ _ pre := cType | throwError "iguarded: unexpected{indentExpr cType}"
+    let_expr OFE.Contractive _ _ _ _ pre := cType
+      | throwError "iguarded: unexpected{indentExpr cType}"
     let .const _ us := pre.getAppFn | throwError "iguarded: unexpected{indentExpr pre}"
     let fixed := pre.getAppArgs
     let fn := mkAppN (.const declName us) fixed
@@ -92,7 +93,7 @@ meta def emitGuardedLaws (declName : Name) (cName : Name) : TermElabM Unit := do
         let lemma := `Iris.Banach ++ .mkSimple ("fixpoint_" ++ suffix.toString)
         let some law ← observing? <|
           mkAppOptM lemma #[P, none, X, none, none, none, none, pre, c, fn, hf] | continue
-        emit suffix (← cleanup pre pre fn (← lawType avoid law)) law
+        emit suffix (← cleanup (← lawType avoid law)) law
 where guardedLaws := [`persistent, `absorbing, `affine, `persistent_absorbing, `persistent_affine,
     `plain, `plain_absorbing, `plain_affine]
 

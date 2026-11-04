@@ -4,7 +4,7 @@ public import Iris.BI
 public import IrisFix.ProofMode.Lib.Fixpoint
 public import IrisFix.BI.Lib.FixpointBanach
 
-/-! Stress tests for the theory/instance layer: `IOrder`, `IMeet`, `INe`, `PointwiseLifting*`,
+/-! Stress tests for the theory/instance layer: `IOrder`, `INe`, `PointwiseLifting*`,
 `IPointwiseLifting`, at many `Pred` shapes, without the commands. -/
 
 @[expose] public section
@@ -22,20 +22,20 @@ open PointwiseLifting (all)
 section Synth
 open MonotoneFixpoint
 
-example : IOrder PROP PROP := inferInstance
-example : IMeet PROP PROP := inferInstance
+example : IOrder PROP := inferInstance
+example (a b : PROP) : PROP := a ⊓ᵢ b
 example : INe PROP := inferInstance
-example : IOrder PROP (Nat → PROP) := inferInstance
-example : IMeet PROP (Nat → PROP) := inferInstance
+example (a b : Nat → PROP) : PROP := a ⊑ᵢ b
+example (a b : Nat → PROP) : Nat → PROP := a ⊓ᵢ b
 example : INe (Nat → PROP) := inferInstance
-example : IOrder PROP (Unit → PROP) := inferInstance
-example : IOrder PROP (Empty → PROP) := inferInstance
-example : IOrder PROP (PROP → PROP) := inferInstance
-example : IMeet PROP (PROP → PROP) := inferInstance
+example (a b : Unit → PROP) : PROP := a ⊑ᵢ b
+example (a b : Empty → PROP) : PROP := a ⊑ᵢ b
+example (a b : PROP → PROP) : PROP := a ⊑ᵢ b
+example (a b : PROP → PROP) : PROP → PROP := a ⊓ᵢ b
 example : INe (PROP → PROP) := inferInstance
-example : IOrder PROP ((Nat → PROP) → PROP) := inferInstance
+example (a b : (Nat → PROP) → PROP) : PROP := a ⊑ᵢ b
 example : INe ((Nat → PROP) → PROP) := inferInstance
-example : IOrder PROP ((x : Nat) → Fin x → PROP) := inferInstance
+example (a b : (x : Nat) → Fin x → PROP) : PROP := a ⊑ᵢ b
 example : INe ((x : Nat) → Fin x → PROP) := inferInstance
 example : PointwiseLiftingLe PROP (Nat → Bool → PROP) := inferInstance
 example : IPointwiseLifting PROP (Nat → Bool → PROP) := inferInstance
@@ -43,18 +43,16 @@ example : PointwiseLiftingLim PROP (Nat → PROP) := inferInstance
 example : PointwiseLiftingLim PROP (PROP → PROP) := inferInstance
 example : PointwiseLiftingLim PROP ((PROP → PROP) → Nat → PROP) := inferInstance
 example : INe (Nat → PROP → Bool → PROP) := inferInstance
-example : IMeet PROP (((PROP → PROP) → PROP) → ((Nat → PROP) → PROP) → PROP) := inferInstance
+example (a b : ((PROP → PROP) → PROP) → ((Nat → PROP) → PROP) → PROP) := a ⊓ᵢ b
 example : INe (((PROP → PROP) → PROP) → ((Nat → PROP) → PROP) → PROP) := inferInstance
-example : IOrder PROP ((α : Type) → α → PROP) := inferInstance
+example (a b : (α : Type) → α → PROP) : PROP := a ⊑ᵢ b
 example : INe ((α : Type) → α → PROP) := inferInstance
-example : IOrder PROP ((α : Type 2) → α → PROP) := inferInstance
-example : IOrder PROP (ULift.{3} Nat → PROP) := inferInstance
+example (a b : (α : Type 2) → α → PROP) : PROP := a ⊑ᵢ b
+example (a b : ULift.{3} Nat → PROP) : PROP := a ⊑ᵢ b
 
--- The low-priority lifting is not chosen at `PROP`, and agrees with the base instances there.
-example : (inferInstance : IOrder PROP PROP) = instIOrderMonoProp := rfl
-example : (IOrder.ofLifting (Pred := PROP) : IOrder PROP PROP) = instIOrderMonoProp := rfl
-example : @IMeet.meet PROP _ PROP _ IOrder.ofLifting IMeet.ofLifting =
-    @IMeet.meet PROP _ PROP _ _ instIMeetMonoProp := rfl
+-- At `PROP`, `⊑ᵢ` and `⊓ᵢ` are the base order and meet.
+example (P Q : PROP) : (P ⊑ᵢ Q) = iprop(P -∗ Q) := rfl
+example (P Q : PROP) : (P ⊓ᵢ Q) = iprop(P ∧ Q) := rfl
 
 -- The order diamond (`CCPO.toPartialOrder` vs Lean's `instOrderPi`) closes at instance
 -- transparency.
@@ -76,39 +74,19 @@ example (n : Nat) (f g : (Nat → PROP) → PROP) :
 
 end Synth
 
--- Failures are fast, and the low-priority lifting does not loop without a base.
+-- Without a base order, `IOrder` fails fast.
 section NoBase
 variable [Lean.Order.CCPO PROP]
 set_option synthInstance.maxHeartbeats 2000
 
 /--
 error: failed to synthesize
-  IOrder PROP PROP
+  IOrder PROP
 
 Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
 -/
-#guard_msgs in #synth IOrder PROP PROP
-
-/--
-error: failed to synthesize
-  IOrder PROP (Nat → PROP)
-
-Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
--/
-#guard_msgs in #synth IOrder PROP (Nat → PROP)
+#guard_msgs in #synth IOrder PROP
 end NoBase
-
-section NoBaseMeet
-variable [Lean.Order.CCPO PROP] [IOrder PROP PROP]
-example : IOrder PROP (Nat → PROP) := inferInstance
-/--
-error: failed to synthesize
-  IMeet PROP (Nat → PROP)
-
-Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
--/
-#guard_msgs in #synth IMeet PROP (Nat → PROP)
-end NoBaseMeet
 
 /-! ## Shapes: everything unfolds to the plain curried form -/
 
@@ -155,76 +133,76 @@ open Lean.Order (fix)
 
 example {F : PROP → PROP} (h : IOrder.IMono PROP F) (Φ : PROP) :
     ⊢ □ (F Φ -∗ Φ) -∗ fix F (IOrder.monotone_of_imono h) -∗ Φ :=
-  IOrder.fix_iter h Φ
+  (fix_isFix (IOrder.monotone_of_imono h)).iter h Φ
 
 example {F : PROP → PROP} (h : IOrder.IMono PROP F) (Φ : PROP) :
     ⊢ □ (F iprop(Φ ∧ fix F (IOrder.monotone_of_imono h)) -∗ Φ) -∗
       fix F (IOrder.monotone_of_imono h) -∗ Φ :=
-  IOrder.fix_ind h Φ
+  (fix_isFix (IOrder.monotone_of_imono h)).ind h Φ
 
 example {F : (Unit → PROP) → Unit → PROP} (h : IOrder.IMono PROP F) (Φ : Unit → PROP) :
     ⊢ □ (∀ u, F Φ u -∗ Φ u) -∗ ∀ u, fix F (IOrder.monotone_of_imono h) u -∗ Φ u :=
-  IOrder.fix_iter h Φ
+  (fix_isFix (IOrder.monotone_of_imono h)).iter h Φ
 
 example {F : (Empty → PROP) → Empty → PROP} (h : IOrder.IMono PROP F) (Φ : Empty → PROP) :
     ⊢ □ (∀ u, F Φ u -∗ Φ u) -∗ ∀ u, fix F (IOrder.monotone_of_imono h) u -∗ Φ u :=
-  IOrder.fix_iter h Φ
+  (fix_isFix (IOrder.monotone_of_imono h)).iter h Φ
 
 example {F : (PROP → PROP) → PROP → PROP} (h : IOrder.IMono PROP F) (Φ : PROP → PROP) :
     ⊢ □ (∀ P, F Φ P -∗ Φ P) -∗ ∀ P, fix F (IOrder.monotone_of_imono h) P -∗ Φ P :=
-  IOrder.fix_iter h Φ
+  (fix_isFix (IOrder.monotone_of_imono h)).iter h Φ
 
 example {F : (PROP → PROP) → PROP → PROP} (h : IOrder.IMono PROP F) (Φ : PROP → PROP) :
     ⊢ □ (∀ P, F (fun Q => iprop(Φ Q ∧ fix F (IOrder.monotone_of_imono h) Q)) P -∗ Φ P) -∗
       ∀ P, fix F (IOrder.monotone_of_imono h) P -∗ Φ P :=
-  IOrder.fix_ind h Φ
+  (fix_isFix (IOrder.monotone_of_imono h)).ind h Φ
 
 example {F : ((Nat → PROP) → PROP) → (Nat → PROP) → PROP} (h : IOrder.IMono PROP F)
     (Φ : (Nat → PROP) → PROP) :
     ⊢ □ (∀ P, F Φ P -∗ Φ P) -∗ ∀ P, fix F (IOrder.monotone_of_imono h) P -∗ Φ P :=
-  IOrder.fix_iter h Φ
+  (fix_isFix (IOrder.monotone_of_imono h)).iter h Φ
 
 example {F : ((n : Nat) → Fin n → PROP) → (n : Nat) → Fin n → PROP} (h : IOrder.IMono PROP F)
     (Φ : (n : Nat) → Fin n → PROP) :
     ⊢ □ (∀ n i, F Φ n i -∗ Φ n i) -∗ ∀ n i, fix F (IOrder.monotone_of_imono h) n i -∗ Φ n i :=
-  IOrder.fix_iter h Φ
+  (fix_isFix (IOrder.monotone_of_imono h)).iter h Φ
 
 universe v w in
 example {A : Type v} {B : A → Type w} {F : ((a : A) → B a → PROP) → (a : A) → B a → PROP}
     (h : IOrder.IMono PROP F) (Φ : (a : A) → B a → PROP) :
     ⊢ □ (∀ a b, F Φ a b -∗ Φ a b) -∗ ∀ a b, fix F (IOrder.monotone_of_imono h) a b -∗ Φ a b :=
-  IOrder.fix_iter h Φ
+  (fix_isFix (IOrder.monotone_of_imono h)).iter h Φ
 
 example {F : (PROP → PROP) → PROP → PROP} (h : IOrder.IMono PROP F)
     (G : (PROP → PROP) → PROP → PROP) (g : PROP → PROP) (hg : ∀ P, G g P ⊢ g P) :
     ⊢ □ (∀ Φ P, F Φ P -∗ G Φ P) -∗ ∀ P, fix F (IOrder.monotone_of_imono h) P -∗ g P :=
-  IOrder.fix_strong_mono h G g hg
+  (fix_isFix (IOrder.monotone_of_imono h)).strong_mono h G g hg
 
 example {F : (PROP → PROP) → PROP → PROP} (h : IOrder.IMono PROP F) (Φ W : PROP → PROP)
     (hW : ∀ P, iprop(Φ P ∧ F W P) ⊢ W P) :
     ⊢ □ (∀ P, F W P -∗ Φ P) -∗ ∀ P, fix F (IOrder.monotone_of_imono h) P -∗ Φ P :=
-  IOrder.fix_ind_wf h Φ W hW
+  (fix_isFix (IOrder.monotone_of_imono h)).ind_wf h Φ W hW
 
 -- Instance laws, with the base named.
 example {F : (PROP → PROP) → PROP → PROP} (hF : Lean.Order.monotone F)
     (h : ∀ P, Affine (F (fun _ => iprop(emp)) P)) (P : PROP) : Affine (fix F hF P) :=
-  IOrder.lfp_affine (PROP := PROP) hF h P
+  IsFix.lfp_affine (PROP := PROP) (fix_isFix hF) hF h P
 
 example {F : (PROP → PROP) → PROP → PROP} (hF : Lean.Order.monotone F)
     (h : ∀ P, Absorbing (F (fun Q => iprop(True -∗ fix F hF Q)) P)) (P : PROP) :
     Absorbing (fix F hF P) :=
-  IOrder.lfp_absorbing (PROP := PROP) hF h P
+  IsFix.lfp_absorbing (PROP := PROP) (fix_isFix hF) hF h P
 
 example {F : PROP → PROP} (hF : Lean.Order.monotone F)
     (hA : Affine (F iprop(□ fix F hF))) (hP : Persistent (F iprop(□ fix F hF))) :
     Persistent (fix F hF) :=
-  IOrder.lfp_persistent_affine (PROP := PROP) hF hA hP
+  IsFix.lfp_persistent_affine (PROP := PROP) (fix_isFix hF) hF hA hP
 
 example {F : ((n : Nat) → Fin n → PROP) → (n : Nat) → Fin n → PROP} (hF : Lean.Order.monotone F)
     (hA : ∀ n i, Absorbing (fix F hF n i))
     (hP : ∀ n i, Persistent (F (fun n i => iprop(<pers> fix F hF n i)) n i)) (n : Nat)
     (i : Fin n) : Persistent (fix F hF n i) :=
-  IOrder.lfp_persistent_absorbing (PROP := PROP) hF hA hP n i
+  IsFix.lfp_persistent_absorbing (PROP := PROP) (fix_isFix hF) hF hA hP n i
 
 -- `ne`, at `PROP → PROP` (an OFE argument) and at `PROP`.
 example {F : (PROP → PROP) → PROP → PROP} (hF : Lean.Order.monotone F) {n : Nat}
@@ -244,11 +222,11 @@ example {F₁ F₂ : (Unit → PROP) → Unit → PROP} (h₁ : Lean.Order.monot
     fix F₁ h₁ x ≡{n}≡ fix F₂ h₂ x :=
   @fix_ne _ _ INe.instPi _ _ h₁ h₂ n hF x
 
--- `PointwiseLifting.fix_all` directly.
+-- `IsFix.all` directly.
 example {F : (PROP → PROP) → PROP → PROP} (hF : Lean.Order.monotone F)
     (h : ∀ P, Persistent (F (fun Q => iprop(<pers> fix F hF Q)) P))
     (hA : ∀ P, Absorbing (fix F hF P)) (P : PROP) : Persistent (fix F hF P) :=
-  PointwiseLifting.fix_all (B := PROP) hF (m := fun P => iprop(<pers> P))
+  IsFix.all (B := PROP) (fix_isFix hF) hF (m := fun P => iprop(<pers> P))
     (fun _ _ => persistently_mono) (fun _ => ⟨fun h => h.persistent, fun h => ⟨h⟩⟩)
     (fun P => @persistently_elim _ _ _ (hA P)) h P
 
@@ -260,17 +238,17 @@ open Lean.Order (fix)
 
 example {F : (PROP → PROP) → PROP → PROP} (h : IOrder.IMono PROP F) (Φ : PROP → PROP) :
     ⊢ □ (∀ P, Φ P -∗ F Φ P) -∗ ∀ P, Φ P -∗ fix F (IOrder.monotone_of_imono h) P :=
-  IOrder.fix_iter h Φ
+  (fix_isFix (IOrder.monotone_of_imono h)).iter h Φ
 
 example {F : (PROP → PROP) → PROP → PROP} (h : IOrder.IMono PROP F) (Φ W : PROP → PROP)
     (hW : ∀ P, W P ⊢ iprop(Φ P ∨ F W P)) :
     ⊢ □ (∀ P, Φ P -∗ F W P) -∗ ∀ P, Φ P -∗ fix F (IOrder.monotone_of_imono h) P :=
-  IOrder.fix_ind_wf h Φ W hW
+  (fix_isFix (IOrder.monotone_of_imono h)).ind_wf h Φ W hW
 
 example {F : (PROP → PROP) → PROP → PROP} (hF : Lean.Order.monotone F)
     (h : ∀ P, Absorbing (F (fun Q => iprop(<absorb> fix F hF Q)) P)) (P : PROP) :
     Absorbing (fix F hF P) :=
-  IOrder.gfp_absorbing (PROP := PROP) hF h P
+  IsFix.gfp_absorbing (PROP := PROP) (fix_isFix hF) hF h P
 
 end LawsCo
 
@@ -316,7 +294,7 @@ open Lean.Order (fix)
 -- The instance laws take `PROP` explicitly, so curried hypotheses elaborate without naming it.
 example {F : (PROP → PROP) → PROP → PROP} (hF : Lean.Order.monotone F)
     (h : ∀ P, Affine (F (fun _ => iprop(emp)) P)) (P : PROP) : Affine (fix F hF P) :=
-  IOrder.lfp_affine PROP hF h P
+  IsFix.lfp_affine PROP (fix_isFix hF) hF h P
 
 example (F : (Unit → PROP) → Unit → PROP) [Contractive F] {f : Unit → PROP} (hf : f = F f)
     (h : ∀ Φ : Unit → PROP, (∀ P, Affine (Φ P)) → ∀ P, Affine (F Φ P)) (P : Unit) :
@@ -340,11 +318,11 @@ open Lean.Order (fix)
 -- no `PointwiseLifting`/`INe`/`IPointwiseLifting` instance: the `instPi`s take `ι : Type _`.
 /--
 error: failed to synthesize
-  IOrder PROP ((n : Nat) → n < 5 → PROP)
+  PointwiseLifting PROP ((n : Nat) → n < 5 → PROP)
 
 Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
 -/
-#guard_msgs in #synth IOrder PROP ((n : Nat) → n < 5 → PROP)
+#guard_msgs in #synth PointwiseLifting PROP ((n : Nat) → n < 5 → PROP)
 
 /--
 error: failed to synthesize
@@ -365,23 +343,23 @@ ifix bnd (n : Nat) (h : n < 5) : PROP :=
   iprop(⌜n = 0⌝ ∨ ∃ m, ∃ hm : m < 5, ⌜n = m + 1⌝ ∗ bnd m hm)
 
 -- BUG: `⊑ᵢ` is opaque to the proof mode: the generic laws can't be `iapply`d without first
--- unfolding `IOrder.le`, even at `Pred = PROP`.
+-- unfolding `IPointwiseLifting.irel` and `IOrder.le`, even at `Pred = PROP`.
 /--
-error: iapply: IntoWand type class synthesis failed with IOrder.le (fix F ⋯) Φ and fix F ⋯
+error: iapply: IntoWand type class synthesis failed with IPointwiseLifting.irel IOrder.le (fix F ⋯) Φ and fix F ⋯
 -/
 #guard_msgs in
 example {F : PROP → PROP} (h : IOrder.IMono PROP F) (Φ : PROP) (hΦ : F Φ ⊢ Φ) :
     fix F (IOrder.monotone_of_imono h) ⊢ Φ := by
   iintro H
-  iapply IOrder.fix_iter h Φ $$ [] H
+  iapply (fix_isFix (IOrder.monotone_of_imono h)).iter h Φ $$ [] H
   iintro !> HF
   iapply hΦ $$ HF
 
 -- The same, after unfolding: works.
 example {F : PROP → PROP} (h : IOrder.IMono PROP F) (Φ : PROP) (hΦ : F Φ ⊢ Φ) :
     fix F (IOrder.monotone_of_imono h) ⊢ Φ := by
-  have hi := IOrder.fix_iter h Φ
-  simp only [IOrder.le] at hi
+  have hi := (fix_isFix (IOrder.monotone_of_imono h)).iter h Φ
+  simp only [IPointwiseLifting.irel, IOrder.le] at hi
   iintro H
   iapply hi $$ [] H
   iintro !> HF
@@ -398,11 +376,11 @@ Hint: Type class instance resolution failures can be inspected with the `set_opt
 -/
 #guard_msgs in
 example {F : (Nat → Nat → Nat → Nat → Nat → Nat → PROP) → Nat → Nat → Nat → Nat → Nat → Nat → PROP}
-    (h : IOrder.IMono PROP F) := IOrder.fix_iter h
+    (h : IOrder.IMono PROP F) := (fix_isFix (IOrder.monotone_of_imono h)).iter h
 
 set_option synthInstance.maxSize 1000 in
 example {F : (Nat → Nat → Nat → Nat → Nat → Nat → PROP) → Nat → Nat → Nat → Nat → Nat → Nat → PROP}
-    (h : IOrder.IMono PROP F) := IOrder.fix_iter h
+    (h : IOrder.IMono PROP F) := (fix_isFix (IOrder.monotone_of_imono h)).iter h
 
 -- Limitation: the high-priority `INe.instPiNE` always wins over `INe.instPi`, so pointwise `ne`
 -- (`F₁` vs `F₂`) at an OFE argument needs the instance named (see `LawsMono`).
@@ -433,16 +411,16 @@ open Lean.Order (fix)
 example : (inferInstance : Lean.Order.CCPO PROP) = instCCPOAntiProp := rfl
 /--
 error: Type mismatch
-  IOrder.fix_iter h Φ
+  IsFix.iter (fix_isFix (IOrder.monotone_of_imono h)) h Φ
 has type
-  ⊢ □ IOrder.le (F Φ) Φ -∗ IOrder.le (fix F ⋯) Φ
+  ⊢ □ IPointwiseLifting.irel IOrder.le (F Φ) Φ -∗ IPointwiseLifting.irel IOrder.le (fix F ⋯) Φ
 but is expected to have type
   ⊢ (□ ∀ u, F Φ u -∗ Φ u) -∗ ∀ u, fix F ⋯ u -∗ Φ u
 -/
 #guard_msgs in
 example {F : (Nat → PROP) → Nat → PROP} (h : IOrder.IMono PROP F) (Φ : Nat → PROP) :
     ⊢ □ (∀ u, F Φ u -∗ Φ u) -∗ ∀ u, fix F (IOrder.monotone_of_imono h) u -∗ Φ u :=
-  IOrder.fix_iter h Φ
+  (fix_isFix (IOrder.monotone_of_imono h)).iter h Φ
 end BothScopes
 
 -- Limitation: `open Lean.Order` brings core's scoped `⌜p⌝` notation, which breaks `⌜_⌝` inside
