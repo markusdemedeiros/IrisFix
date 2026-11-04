@@ -16,7 +16,7 @@ local bi PROP
 
 variable {PROP : Type _} [BI PROP]
 
-ifix even (n : Nat) : PROP := iprop(⌜n = 0⌝ ∨ ∃ m, ⌜n = m + 2⌝ ∗ even m)
+ifix even (n : Nat) : PROP := iprop% ⌜n = 0⌝ ∨ ∃ m, ⌜n = m + 2⌝ ∗ even m
 
 example (n : Nat) : even (PROP := PROP) n = even.pre even n := even.unfold n
 
@@ -30,7 +30,7 @@ example (Φ : Nat → PROP) :
   even.ind Φ
 
 -- A fixed parameter and two varying ones.
-icofix swap (P : PROP) (n : Nat) (b : Bool) : PROP := iprop(P ∗ ▷ swap P (n + 1) !b)
+icofix swap (P : PROP) (n : Nat) (b : Bool) : PROP := iprop% P ∗ ▷ swap P (n + 1) !b
 
 example (P : PROP) (n : Nat) (b : Bool) : swap P n b = swap.pre P (swap P) n b := swap.unfold P n b
 
@@ -67,14 +67,14 @@ example (P : PROP) [Absorbing P] (n : Nat) (b : Bool) : Absorbing (swap P n b) :
 section
 variable {α : Type _}
 
-ifix swapNe [OFE α] (x y : α) : PROP := iprop(▷ swapNe y x)
+ifix swapNe [OFE α] (x y : α) : PROP := iprop% ▷ swapNe y x
 
 example [OFE α] {n : Nat} {x x' y y' : α} (hx : x ≡{n}≡ x') (hy : y ≡{n}≡ y') :
     swapNe (PROP := PROP) x y ≡{n}≡ swapNe x' y' :=
   swapNe.ne (fun _ _ hf x x' hx y y' hy => later_ne.ne (hf y y' hy x x' hx)) x x' hx y y' hy
 
 -- A fixed parameter after a varying one.
-ifix mixed2 [OFE α] (b : Bool) (x : α) : PROP := iprop(▷ mixed2 (!b) x ∗ mixed2 b x)
+ifix mixed2 [OFE α] (b : Bool) (x : α) : PROP := iprop% ▷ mixed2 (!b) x ∗ mixed2 b x
 
 example [OFE α] (b : Bool) (x : α) : mixed2 (PROP := PROP) b x = mixed2.pre x (mixed2 · x) b :=
   mixed2.unfold b x
@@ -87,7 +87,7 @@ example [OFE α] [BIAffine PROP] (x : α) (b : Bool) : Affine (mixed2 (PROP := P
   inferInstance
 
 -- A fixed parameter after varying ones with an OFE.
-ifix mixedNe [OFE α] (x y : α) (k : Nat) : PROP := iprop(▷ mixedNe y x k)
+ifix mixedNe [OFE α] (x y : α) (k : Nat) : PROP := iprop% ▷ mixedNe y x k
 
 example [OFE α] (k : Nat) {n : Nat} {x x' y y' : α} (hx : x ≡{n}≡ x') (hy : y ≡{n}≡ y') :
     mixedNe (PROP := PROP) x y k ≡{n}≡ mixedNe x' y' k :=

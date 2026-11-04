@@ -21,7 +21,9 @@ local bi PROP
 
 namespace Banach
 open PointwiseLifting (all all_imp all_const)
-variable {PROP : Type _} [BI PROP] {Pred : Type _} [COFE Pred] [Inhabited Pred]
+
+section BI
+variable (PROP : Type _) [BI PROP] {Pred : Type _} [COFE Pred] [Inhabited Pred]
   [PointwiseLifting PROP Pred] [PointwiseLiftingLim PROP Pred]
 
 /-- `C` holds at every point of a fixpoint, if `F` preserves it, `C` survives limits, and some
@@ -39,24 +41,25 @@ include hf
 theorem fixpoint_persistent :
     (∀ Φ, all (B := PROP) Persistent Φ → all (B := PROP) Persistent (F Φ)) →
       all (B := PROP) Persistent f :=
-  fixpoint_all (C := Persistent) (limitPreserving_persistent id) (c := iprop(emp)) inferInstance F
-    hf
+  fixpoint_all PROP (C := Persistent) (limitPreserving_persistent id) (c := iprop(emp)) inferInstance
+    F hf
 
 theorem fixpoint_absorbing :
     (∀ Φ, all (B := PROP) Absorbing Φ → all (B := PROP) Absorbing (F Φ)) →
       all (B := PROP) Absorbing f :=
-  fixpoint_all (C := Absorbing) (limitPreserving_absorbing id) (c := iprop(True)) inferInstance F hf
+  fixpoint_all PROP (C := Absorbing) (limitPreserving_absorbing id) (c := iprop(True)) inferInstance
+    F hf
 
 theorem fixpoint_affine :
     (∀ Φ, all (B := PROP) Affine Φ → all (B := PROP) Affine (F Φ)) →
       all (B := PROP) Affine f :=
-  fixpoint_all (C := Affine) (limitPreserving_affine id) (c := iprop(emp)) inferInstance F hf
+  fixpoint_all PROP (C := Affine) (limitPreserving_affine id) (c := iprop(emp)) inferInstance F hf
 
 theorem fixpoint_persistent_absorbing
     (h : ∀ Φ, all (B := PROP) Persistent Φ → all (B := PROP) Absorbing Φ →
       all (B := PROP) (fun P => Persistent P ∧ Absorbing P) (F Φ)) :
     all (B := PROP) (fun P => Persistent P ∧ Absorbing P) f :=
-  fixpoint_all (C := fun P => Persistent P ∧ Absorbing P)
+  fixpoint_all PROP (C := fun P => Persistent P ∧ Absorbing P)
     ((limitPreserving_persistent id).and (limitPreserving_absorbing id))
     (c := iprop(True)) ⟨inferInstance, inferInstance⟩ F hf
     fun Φ hΦ => h Φ (all_imp (fun _ h => h.1) hΦ) (all_imp (fun _ h => h.2) hΦ)
@@ -65,10 +68,42 @@ theorem fixpoint_persistent_affine
     (h : ∀ Φ, all (B := PROP) Persistent Φ → all (B := PROP) Affine Φ →
       all (B := PROP) (fun P => Persistent P ∧ Affine P) (F Φ)) :
     all (B := PROP) (fun P => Persistent P ∧ Affine P) f :=
-  fixpoint_all (C := fun P => Persistent P ∧ Affine P)
+  fixpoint_all PROP (C := fun P => Persistent P ∧ Affine P)
     ((limitPreserving_persistent id).and (limitPreserving_affine id))
     (c := iprop(emp)) ⟨inferInstance, inferInstance⟩ F hf
     fun Φ hΦ => h Φ (all_imp (fun _ h => h.1) hΦ) (all_imp (fun _ h => h.2) hΦ)
+
+end BI
+
+section Sbi
+variable (PROP : Type _) [Sbi PROP] {Pred : Type _} [COFE Pred] [Inhabited Pred]
+  [PointwiseLifting PROP Pred] [PointwiseLiftingLim PROP Pred]
+variable (F : Pred → Pred) [Contractive F] {f : Pred} (hf : f = F f)
+include hf
+
+theorem fixpoint_plain :
+    (∀ Φ, all (B := PROP) Plain Φ → all (B := PROP) Plain (F Φ)) → all (B := PROP) Plain f :=
+  fixpoint_all PROP (C := Plain) (limitPreserving_plain id) (c := iprop(emp)) inferInstance F hf
+
+theorem fixpoint_plain_absorbing
+    (h : ∀ Φ, all (B := PROP) Plain Φ → all (B := PROP) Absorbing Φ →
+      all (B := PROP) (fun P => Plain P ∧ Absorbing P) (F Φ)) :
+    all (B := PROP) (fun P => Plain P ∧ Absorbing P) f :=
+  fixpoint_all PROP (C := fun P => Plain P ∧ Absorbing P)
+    ((limitPreserving_plain id).and (limitPreserving_absorbing id))
+    (c := iprop(True)) ⟨inferInstance, inferInstance⟩ F hf
+    fun Φ hΦ => h Φ (all_imp (fun _ h => h.1) hΦ) (all_imp (fun _ h => h.2) hΦ)
+
+theorem fixpoint_plain_affine
+    (h : ∀ Φ, all (B := PROP) Plain Φ → all (B := PROP) Affine Φ →
+      all (B := PROP) (fun P => Plain P ∧ Affine P) (F Φ)) :
+    all (B := PROP) (fun P => Plain P ∧ Affine P) f :=
+  fixpoint_all PROP (C := fun P => Plain P ∧ Affine P)
+    ((limitPreserving_plain id).and (limitPreserving_affine id))
+    (c := iprop(emp)) ⟨inferInstance, inferInstance⟩ F hf
+    fun Φ hΦ => h Φ (all_imp (fun _ h => h.1) hΦ) (all_imp (fun _ h => h.2) hΦ)
+
+end Sbi
 
 end Banach
 

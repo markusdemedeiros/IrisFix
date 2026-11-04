@@ -269,9 +269,9 @@ end
 section
 open MonotoneFixpoint
 
-def evF (f : Nat → Bool → PROP) (_ : Nat) (b : Bool) : PROP := iprop(emp ∨ ∃ m, f m (!b))
+def evF (f : Nat → Bool → PROP) (_ : Nat) (b : Bool) : PROP := iprop% emp ∨ ∃ m, f m (!b)
 
-def ev (_n : Nat) (b : Bool) : PROP := iprop(emp ∨ ∃ m, ev m (!b))
+def ev (_n : Nat) (b : Bool) : PROP := iprop% emp ∨ ∃ m, ev m (!b)
 partial_fixpoint monotonicity IOrder.monotone_of_imono (PROP := PROP) (by imono)
 
 example (hF : ∀ Φ Ψ : Nat → Bool → PROP,
@@ -285,9 +285,9 @@ end
 section
 open CoMonotoneFixpoint
 
-def stF (f : Nat → Bool → PROP) (n : Nat) (b : Bool) : PROP := iprop(▷ f (n + 1) (!b))
+def stF (f : Nat → Bool → PROP) (n : Nat) (b : Bool) : PROP := iprop% ▷ f (n + 1) (!b)
 
-def st (n : Nat) (b : Bool) : PROP := iprop(▷ st (n + 1) (!b))
+def st (n : Nat) (b : Bool) : PROP := iprop% ▷ st (n + 1) (!b)
 partial_fixpoint monotonicity IOrder.monotone_of_imono (PROP := PROP) (by imono)
 
 example (hF : ∀ Φ Ψ : Nat → Bool → PROP,

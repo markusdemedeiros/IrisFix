@@ -58,7 +58,7 @@ example : (∀ Φ, (∀ n b, Persistent (Φ n b)) → (∀ n b, Absorbing (Φ n 
 end
 
 -- A guarded body: `Persistent` at every point, at two arguments.
-def body (Φ : Nat → Bool → PROP) (n : Nat) (b : Bool) : PROP := iprop(□ ▷ Φ (n + 1) !b)
+def body (Φ : Nat → Bool → PROP) (n : Nat) (b : Bool) : PROP := iprop% □ ▷ Φ (n + 1) !b
 
 instance [BILaterContractive PROP] : Contractive (body (PROP := PROP)) where
   distLater_dist h n b :=

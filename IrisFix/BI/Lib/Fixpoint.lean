@@ -352,7 +352,7 @@ open PointwiseLifting (all all_imp all_and all_forall map all_le map_const fix_a
 
 section Lfp
 open MonotoneFixpoint
-variable {PROP : Type _} [BI PROP] {Pred : Type _} [CCPO Pred] [PointwiseLifting PROP Pred]
+variable (PROP : Type _) [BI PROP] {Pred : Type _} [CCPO Pred] [PointwiseLifting PROP Pred]
   [PointwiseLiftingLe PROP Pred]
   {F : Pred → Pred} (hF : monotone F)
 include hF
@@ -392,7 +392,7 @@ end Lfp
 
 section Gfp
 open CoMonotoneFixpoint
-variable {PROP : Type _} [BI PROP] {Pred : Type _} [CCPO Pred] [PointwiseLifting PROP Pred]
+variable (PROP : Type _) [BI PROP] {Pred : Type _} [CCPO Pred] [PointwiseLifting PROP Pred]
   [PointwiseLiftingLe PROP Pred]
   {F : Pred → Pred} (hF : monotone F)
 include hF

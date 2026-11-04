@@ -19,7 +19,7 @@ variable {PROP : Type _} [BI PROP] [BILaterContractive PROP] [Inhabited PROP]
 /-! Guarded fixpoints by `partial_fixpoint` on approximations, with a fixed parameter `k`. -/
 
 -- One varying parameter.
-def body1 (k : Nat) (Φ : Nat → PROP) (n : Nat) : PROP := iprop(▷ Φ (n + k))
+def body1 (k : Nat) (Φ : Nat → PROP) (n : Nat) : PROP := iprop% ▷ Φ (n + k)
 
 instance (k : Nat) : Contractive (body1 (PROP := PROP) k) where
   distLater_dist h n := Contractive.distLater_dist fun m hm => h m hm (n + k)
@@ -31,7 +31,7 @@ example (k : Nat) : get (approx1 (PROP := PROP) k) = fixpoint (body1 k) :=
   get_eq_fixpoint (body1 k) (approx1.eq_1 k).symm
 
 -- Two curried varying parameters.
-def body2 (k : Nat) (Φ : Nat → Bool → PROP) (n : Nat) (b : Bool) : PROP := iprop(▷ Φ (n + k) !b)
+def body2 (k : Nat) (Φ : Nat → Bool → PROP) (n : Nat) (b : Bool) : PROP := iprop% ▷ Φ (n + k) !b
 
 instance (k : Nat) : Contractive (body2 (PROP := PROP) k) where
   distLater_dist h n b := Contractive.distLater_dist fun m hm => h m hm (n + k) !b

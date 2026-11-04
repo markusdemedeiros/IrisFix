@@ -89,13 +89,20 @@ theorem refl : IMonoPred R P P :=
   ihave HP := h₁ $$ H HP'
   iapply h₂ $$ H (HPQ $$ HP)
 
-/-- The premise of a persistent implication flips direction. -/
-@[imono] theorem pers_imp (h₁ : IMonoPred R P' P) (h₂ : IMonoPred R Q Q') :
-    IMonoPred R iprop(<pers> P → Q) iprop(<pers> P' → Q') := by
+/-- The premise of an implication flips direction. With `□ R`, `∗` and `∧` agree, so the
+assumption can be used under `→`. -/
+@[imono] theorem imp (h₁ : IMonoPred R P' P) (h₂ : IMonoPred R Q Q') :
+    IMonoPred R iprop(P → Q) iprop(P' → Q') := by
   unfold IMonoPred at *
-  iintro #H HPQ #HP'
-  ihave #HP := h₁ $$ H HP'
-  iapply h₂ $$ H (HPQ $$ HP)
+  have and_elim {P Q : PROP} (h : ⊢ □ R -∗ P -∗ Q) : <pers> R ∧ P ⊢ Q :=
+    persistently_and_intuitionistically_sep_left.1.trans (wand_elim (emp_sep.2.trans (wand_elim h)))
+  replace h₁ := and_elim h₁
+  replace h₂ := and_elim h₂
+  refine wand_intro <| emp_sep.1.trans <| wand_intro ?_
+  refine persistently_and_intuitionistically_sep_left.2.trans <| imp_intro ?_
+  refine (and_intro (and_elim_l.trans and_elim_l) (and_intro (and_elim_l.trans and_elim_r)
+    ((and_mono_left and_elim_l).trans h₁))).trans ?_
+  exact (and_mono_right imp_elim_left).trans h₂
 
 @[imono] theorem «forall» {B : Sort _} {P P' : B → PROP} (h : ∀ b, IMonoPred R (P b) (P' b)) :
     IMonoPred R iprop(∀ b, P b) iprop(∀ b, P' b) := by
@@ -239,6 +246,67 @@ theorem refl : IMonoPred R P P :=
   iapply BigSepMS.bigSepMS_impl $$ HP
   iintro !> %x _ HPx
   iapply h x $$ H HPx
+
+/-- A list whose elements are related one by one, such as a list of recursive calls. -/
+@[imono] theorem bigSepL_nil {B : Type _} {P P' : Nat → B → PROP} :
+    IMonoPred R iprop([∗list] k ↦ x ∈ ([] : List B), P k x)
+      iprop([∗list] k ↦ x ∈ ([] : List B), P' k x) :=
+  refl
+
+@[imono] theorem bigSepL_cons {B : Type _} {x x' : B} {l l' : List B} {P P' : Nat → B → PROP}
+    (h₁ : IMonoPred R (P 0 x) (P' 0 x'))
+    (h₂ : IMonoPred R iprop([∗list] k ↦ y ∈ l, P (k + 1) y)
+      iprop([∗list] k ↦ y ∈ l', P' (k + 1) y)) :
+    IMonoPred R iprop([∗list] k ↦ y ∈ x :: l, P k y) iprop([∗list] k ↦ y ∈ x' :: l', P' k y) :=
+  sep h₁ h₂
+
+/-- A mapped list, such as `l.map fun x => rec x`. -/
+@[imono] theorem bigSepL_map {B C : Type _} {l : List B} {g g' : B → C} {P P' : Nat → C → PROP}
+    (h : ∀ k x, IMonoPred R (P k (g x)) (P' k (g' x))) :
+    IMonoPred R iprop([∗list] k ↦ y ∈ l.map g, P k y) iprop([∗list] k ↦ y ∈ l.map g', P' k y) := by
+  rw [BigSepL.bigSepL_map, BigSepL.bigSepL_map]
+  exact bigSepL h
+
+theorem bigSep_bigSepL {Ps : List PROP} : ([∗] Ps) ⊣⊢ [∗list] P ∈ Ps, P := by
+  match Ps with
+  | [] => exact .rfl
+  | [P] => exact sep_emp.symm
+  | P :: Q :: Ps => exact sep_congr_right bigSep_bigSepL
+
+@[imono] theorem bigSep {Ps Ps' : List PROP}
+    (h : IMonoPred R iprop([∗list] P ∈ Ps, P) iprop([∗list] P ∈ Ps', P)) :
+    IMonoPred R iprop([∗] Ps) iprop([∗] Ps') := by
+  unfold IMonoPred at *
+  iintro #H HP
+  ihave HP := bigSep_bigSepL.1 $$ HP
+  iapply bigSep_bigSepL.2
+  iapply h $$ H HP
+
+/-- `List.foldr`: the step is monotone in the accumulator. -/
+@[imono] theorem foldr {B : Type _} {l : List B} {f f' : B → PROP → PROP} {i i' : PROP}
+    (hi : IMonoPred R i i') (hf : ∀ x a a', IMonoPred R a a' → IMonoPred R (f x a) (f' x a')) :
+    IMonoPred R (l.foldr f i) (l.foldr f' i') := by
+  induction l with
+  | nil => exact hi
+  | cons x l ih => exact hf x _ _ ih
+
+/-- `List.foldl`: the step is monotone in the accumulator. -/
+@[imono] theorem foldl {B : Type _} {l : List B} {f f' : PROP → B → PROP} {i i' : PROP}
+    (hi : IMonoPred R i i') (hf : ∀ a a' x, IMonoPred R a a' → IMonoPred R (f a x) (f' a' x)) :
+    IMonoPred R (l.foldl f i) (l.foldl f' i') := by
+  induction l generalizing i i' with
+  | nil => exact hi
+  | cons x l ih => exact ih (hf _ _ x hi)
+
+/-- `Nat.rec` (and `Nat.casesOn`, which unfolds to it): the step is monotone in the result of the
+recursive call. -/
+@[imono] theorem natRec {n : Nat} {z z' : PROP} {s s' : Nat → PROP → PROP}
+    (hz : IMonoPred R z z') (hs : ∀ n a a', IMonoPred R a a' → IMonoPred R (s n a) (s' n a')) :
+    IMonoPred R (Nat.rec (motive := fun _ => PROP) z s n)
+      (Nat.rec (motive := fun _ => PROP) z' s' n) := by
+  induction n with
+  | zero => exact hz
+  | succ n ih => exact hs n _ _ ih
 
 end IMonoPred
 
